@@ -1,0 +1,69 @@
+plugins {
+    id 'kotlin-multiplatform'
+    id 'com.android.library'
+    id 'com.github.dcendents.android-maven'
+}
+
+repositories {
+    google()
+    jcenter()
+}
+
+group 'com.github.raumfeld'
+version '0.0.1'
+
+android {
+    compileSdkVersion 28
+    buildToolsVersion("28.0.3")
+
+    sourceSets {
+        main {
+            setRoot("src/androidMain")
+        }
+
+        test {
+            setRoot("src/AndroidTest")
+        }
+    }
+}
+
+kotlin {
+    android {
+        publishAllLibraryVariants()
+    }
+
+    iosX64("ios") {
+        binaries {
+            framework('RfWamp')
+        }
+    }
+
+    sourceSets {
+        commonMain {
+            dependencies {
+                implementation kotlin('stdlib-common')
+            }
+        }
+        commonTest {
+            dependencies {
+                implementation kotlin('test-common')
+                implementation kotlin('test-annotations-common')
+            }
+        }
+        androidMain {
+            dependencies {
+                implementation kotlin('stdlib')
+            }
+        }
+        androidTest {
+            dependencies {
+                implementation kotlin('test')
+                implementation kotlin('test-junit')
+            }
+        }
+        iosMain {
+        }
+        iosTest {
+        }
+    }
+}

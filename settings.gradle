@@ -8,6 +8,6 @@ pluginManagement {
     }
 }
 rootProject.name = 'rf-wamp'
-
+include ':lib'
 
 enableFeaturePreview('GRADLE_METADATA')
