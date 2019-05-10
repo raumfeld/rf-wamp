@@ -34,7 +34,8 @@ kotlin {
         publishAllLibraryVariants()
     }
 
-    jvm()
+    // this fails with "A POM cannot have multiple artifacts with the same type and classifier"
+//    jvm()
 
     iosX64("ios") {
         binaries {
