@@ -34,6 +34,8 @@ kotlin {
         publishAllLibraryVariants()
     }
 
+    jvm()
+
     iosX64("ios") {
         binaries {
             framework('RfWamp')
@@ -45,6 +47,7 @@ kotlin {
             dependencies {
                 implementation kotlin('stdlib-common')
                 implementation "org.jetbrains.kotlinx:kotlinx-serialization-runtime:0.11.0"
+                implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core-common:$kotlin_coroutines_version"
             }
         }
         commonTest {
@@ -54,8 +57,17 @@ kotlin {
             }
         }
         androidMain {
+            dependsOn commonMain
             dependencies {
                 implementation kotlin('stdlib')
+                implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core:$kotlin_coroutines_version"
+            }
+        }
+        jvmMain {
+            dependsOn commonMain
+            dependencies {
+                implementation 'org.jetbrains.kotlin:kotlin-stdlib-jdk8'
+                implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core:$kotlin_coroutines_version"
             }
         }
         androidTest {
@@ -65,6 +77,10 @@ kotlin {
             }
         }
         iosMain {
+            dependsOn commonMain
+            dependencies {
+                implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core-native:$kotlin_coroutines_version"
+            }
         }
         iosTest {
         }

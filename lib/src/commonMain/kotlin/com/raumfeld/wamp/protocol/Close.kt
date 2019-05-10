@@ -5,6 +5,8 @@ enum class WampClose(val content: String) {
     SYSTEM_SHUTDOWN("wamp.close.system_shutdown"),
     // The Peer want to leave the realm - used as a GOODBYE reason.
     CLOSE_REALM("wamp.close.close_realm"),
+    // The Peer want to leave the realm - used as a GOODBYE reason.
+    PROTOCOL_VIOLATION("wamp.error.protocol_violation"),
     // A Peer acknowledges ending of a session - used as a GOODBYE reply reason.
     GOODBYE_AND_OUT("wamp.close.goodbye_and_out");
 }

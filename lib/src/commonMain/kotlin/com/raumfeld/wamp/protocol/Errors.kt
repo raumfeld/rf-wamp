@@ -1,6 +1,6 @@
 package com.raumfeld.wamp.protocol
 
-enum class WampError(text: String) {
+enum class WampError(val uri: String) {
     // Peer provided an incorrect URI for any URI-based attribute of WAMP message, such as realm, topic or procedure
     INVALID_URI("wamp.error.invalid_uri"),
     // A Dealer could not perform a call, since no procedure is currently registered under the given URI.
