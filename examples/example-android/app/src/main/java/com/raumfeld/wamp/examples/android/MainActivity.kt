@@ -21,6 +21,8 @@ class MainActivity : AppCompatActivity() {
         const val TAG = "WampDemo"
     }
 
+    private var session: WampSession? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -30,13 +32,18 @@ class MainActivity : AppCompatActivity() {
         wsUrl.doAfterTextChanged { AppPreferences.wsUrl = it.toString() }
         realm.doAfterTextChanged { AppPreferences.realm = it.toString() }
 
+        leave.setOnClickListener {
+            session?.leave()
+        }
         join.setOnClickListener {
             val realmString = realm.text.toString()
-            WampClient(OkHttpWebSocketFactory()).createSession(uri = wsUrl.text.toString()) {
-                it.onSuccess {
+            WampClient(OkHttpWebSocketFactory()).createSession(uri = wsUrl.text.toString()) { result ->
+                result.onSuccess {
                     Log.i(TAG, "WAMP session created successfully, joining realm ...")
+                    session = it
                     it.join(realmString, object : WampSession.WampSessionListener {
                         override fun onRealmAborted() {
+                            session = null
                             Log.e(TAG, "Realm was aborted")
                             GlobalScope.launch(Dispatchers.Main) {
                                 Toast.makeText(
@@ -56,6 +63,7 @@ class MainActivity : AppCompatActivity() {
                         }
 
                         override fun onRealmLeft() {
+                            session = null
                             Log.i(TAG, "Realm was left")
                             GlobalScope.launch(Dispatchers.Main) {
                                 Toast.makeText(this@MainActivity, "Realm left!", Toast.LENGTH_SHORT)
@@ -64,8 +72,8 @@ class MainActivity : AppCompatActivity() {
                         }
                     })
                 }
-                it.onFailure {
-                    Log.e(TAG, "Could not create WAMP session", it)
+                result.onFailure {
+                    Log.e(TAG, "WebSocket failure", it)
                     GlobalScope.launch(Dispatchers.Main) {
                         Toast.makeText(
                             this@MainActivity,

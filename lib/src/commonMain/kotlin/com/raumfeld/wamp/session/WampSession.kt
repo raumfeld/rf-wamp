@@ -86,8 +86,14 @@ class WampSession(
         failTransition(trigger)
     }
 
-    private fun evaluateClosing(trigger: Trigger) {
-        failTransition(trigger)
+    private fun evaluateClosing(trigger: Trigger)  = when (trigger) {
+        is MessageReceived -> {
+            when (trigger.message) {
+                is Message.Goodbye -> onGoodbyeReceived()
+                else               -> onProtocolViolated()
+            }
+        }
+        else               -> failTransition(trigger)
     }
 
     private fun evaluatedAborted(trigger: Trigger) {
@@ -101,23 +107,27 @@ class WampSession(
         }
     }
 
-    private fun evaluateJoining(trigger: Trigger) {
-        when (trigger) {
-            is MessageReceived -> {
-                when (trigger.message) {
-                    is Message.Welcome -> onWelcomeReceived()
-                    is Message.Abort   -> onAbortReceived()
-                    else               -> onProtocolViolated()
-                }
+    private fun evaluateJoining(trigger: Trigger) = when (trigger) {
+        is MessageReceived -> {
+            when (trigger.message) {
+                is Message.Welcome -> onWelcomeReceived()
+                is Message.Abort   -> onAbortReceived()
+                else               -> onProtocolViolated()
             }
-            is Leave           -> sendAbort(WampClose.SYSTEM_SHUTDOWN)
-            else               -> failTransition(trigger)
         }
+        is Leave           -> sendAbort(WampClose.SYSTEM_SHUTDOWN)
+        else               -> failTransition(trigger)
     }
 
     private fun onWelcomeReceived() {
         state = JOINED
         sessionListener?.onRealmJoined()
+    }
+
+    private fun onGoodbyeReceived() {
+        state = CLOSED
+        sessionListener?.onRealmLeft()
+        closeWebsocket()
     }
 
     private fun onAbortReceived() {
@@ -126,12 +136,10 @@ class WampSession(
         abortWebsocket()
     }
 
-    private fun evaluateInitial(trigger: Trigger) {
-        when (trigger) {
-            is MessageReceived -> onProtocolViolated()
-            is Join            -> sendHello(trigger.realm)
-            else               -> failTransition(trigger)
-        }
+    private fun evaluateInitial(trigger: Trigger) = when (trigger) {
+        is MessageReceived -> onProtocolViolated()
+        is Join            -> sendHello(trigger.realm)
+        else               -> failTransition(trigger)
     }
 
     private fun failTransition(trigger: Trigger): Nothing =
@@ -139,10 +147,8 @@ class WampSession(
 
     private fun sendGoodbye() {
         state = CLOSING
-        sessionListener?.onRealmLeft()
         val message = Message.Goodbye(reason = WampClose.SYSTEM_SHUTDOWN.content)
         send(message)
-        closeWebsocket()
     }
 
     private fun onProtocolViolated() = sendAbort(WampClose.PROTOCOL_VIOLATION)
@@ -189,6 +195,10 @@ class WampSession(
     }
 
     internal fun onClosed(code: Int, reason: String) {
+        scope.cancel()
+    }
+
+    internal fun onFailed(t: Throwable) {
         scope.cancel()
     }
 }

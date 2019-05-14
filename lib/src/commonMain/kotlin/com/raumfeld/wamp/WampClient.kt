@@ -32,8 +32,9 @@ class WampClient(private val socketFactory: WebSocketFactory) {
             }
 
             override fun onFailure(webSocketDelegate: WebSocketDelegate, t: Throwable) {
-                callback(failure(t))
+                session?.onFailed(t)
                 session = null
+                callback(failure(t))
             }
         })
     }
