@@ -18,6 +18,10 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
+
+    packagingOptions {
+        exclude 'META-INF/kotlinx-coroutines-core.kotlin_module'
+    }
 }
 
 // don't cache snapshots
@@ -41,6 +45,5 @@ dependencies {
     implementation 'com.chibatching.kotpref:kotpref:2.7.0'
     implementation 'com.chibatching.kotpref:initializer:2.7.0'
 
-    implementation 'com.github.raumfeld:rf-wamp:master-SNAPSHOT@aar'
-
+    implementation project(':lib')
 }
