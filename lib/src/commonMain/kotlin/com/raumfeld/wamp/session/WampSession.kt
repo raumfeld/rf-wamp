@@ -2,6 +2,7 @@ package com.raumfeld.wamp.session
 
 import com.raumfeld.wamp.protocol.Message
 import com.raumfeld.wamp.protocol.WampClose
+import com.raumfeld.wamp.protocol.emptyJsonObject
 import com.raumfeld.wamp.protocol.fromJsonToMessage
 import com.raumfeld.wamp.session.WampSession.State.*
 import com.raumfeld.wamp.session.WampSession.Trigger.*
@@ -11,8 +12,8 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.consumeEach
 import kotlinx.coroutines.launch
-import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.json
 import kotlin.coroutines.CoroutineContext
 
 expect val wampContextFactory: () -> CoroutineContext
@@ -125,18 +126,21 @@ class WampSession(
         abortWebsocket()
     }
 
-    private fun evaluateInitial(trigger: Trigger) = when (trigger) {
-        is Join            -> sendHello(trigger.realm)
-        is MessageReceived -> onProtocolViolated()
-        else               -> failTransition(trigger)
+    private fun evaluateInitial(trigger: Trigger) {
+        when (trigger) {
+            is MessageReceived -> onProtocolViolated()
+            is Join            -> sendHello(trigger.realm)
+            else               -> failTransition(trigger)
+        }
     }
 
-    private fun failTransition(trigger: Trigger): Nothing = error("Invalid state trigger $trigger for state $state")
+    private fun failTransition(trigger: Trigger): Nothing =
+        error("Invalid state trigger $trigger for state $state")
 
     private fun sendGoodbye() {
         state = CLOSING
         sessionListener?.onRealmLeft()
-        val message = Message.Goodbye(emptyMap(), reason = WampClose.SYSTEM_SHUTDOWN.content)
+        val message = Message.Goodbye(reason = WampClose.SYSTEM_SHUTDOWN.content)
         send(message)
         closeWebsocket()
     }
@@ -146,7 +150,7 @@ class WampSession(
     private fun sendAbort(reason: WampClose) {
         state = ABORTED
         sessionListener?.onRealmAborted()
-        val message = Message.Abort(emptyMap(), reason.content)
+        val message = Message.Abort(reason = reason.content)
         send(message)
         abortWebsocket()
     }
@@ -159,14 +163,12 @@ class WampSession(
         state = JOINING
         this.realm = realm
         val message = Message.Hello(
-            realm, mapOf(
-                "roles" to JsonObject(
-                    mapOf<String, JsonElement>(
-                        "publisher" to JsonObject(emptyMap()),
-                        "subscriber" to JsonObject(emptyMap())
-                    )
-                )
-            )
+            realm, json {
+                "roles" to json {
+                    "publisher" to emptyJsonObject()
+                    "subscriber" to emptyJsonObject()
+                }
+            }
         )
         send(message)
     }
