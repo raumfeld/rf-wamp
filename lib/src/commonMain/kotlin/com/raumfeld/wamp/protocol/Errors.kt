@@ -9,7 +9,7 @@ enum class WampError(val uri: String) {
     PROCEDURE_ALREADY_EXISTS("wamp.error.procedure_already_exists"),
     // A Dealer could not perform an unregister, since the given registration is not active.
     NO_SUCH_REGISTRATION("wamp.error.no_such_registration"),
-    // A Broker could not perform an unsubscribe, since the given subscription is not active.
+    // A Broker could not perform an unsubscribe, since the given subscriptionId is not active.
     NO_SUCH_SUBSCRIPTION("wamp.error.no_such_subscription"),
     // A call failed since the given argument types or values are not acceptable to the called procedure.
     INVALID_ARGUMENT("wamp.error.invalid_argument"),

@@ -1,7 +1,6 @@
 package com.raumfeld.wamp.protocol
 
 import com.raumfeld.wamp.protocol.Message.*
-import kotlinx.serialization.UnstableDefault
 import kotlinx.serialization.json.*
 
 /*
@@ -36,166 +35,242 @@ From: https://wamp-proto.org/_static/gen/wamp_latest.html#protocol-overview
  */
 
 interface RequestMessage {
-    val requestId: Long
+    val requestId: RequestId
+}
+
+typealias RequestId = Long
+typealias SubscriptionId = Long
+typealias PublicationId = Long
+typealias MessageType = Int
+
+private interface MessageFactory<out T : Message> {
+    val type: MessageType
+    fun create(array: JsonArray): T
 }
 
 internal sealed class Message {
     abstract fun toJsonArray(): JsonArray
 
-    @UnstableDefault
     fun toJson() = Json.stringify(JsonArray.serializer(), toJsonArray())
 
+    internal data class InvalidMessage(val originalMessage: JsonArray, val throwable: Throwable) : Message() {
+        override fun toJsonArray() = error("You mustn't serialize this!")
+    }
 
     internal data class Hello(val realm: String, val details: JsonObject) : Message() {
-        companion object {
-            val TYPE: Number = 1
+        companion object : MessageFactory<Hello> {
+            override val type = 1
 
-            fun create(array: List<JsonElement>) =
+            override fun create(array: JsonArray) =
                 Hello(realm = array[1].content, details = array[2].jsonObject)
         }
 
         override fun toJsonArray() = jsonArray {
-            +TYPE
+            +(type as Number)
             +realm
             +details
         }
     }
 
     internal data class Welcome(val session: Long, val details: JsonObject) : Message() {
-        companion object {
-            val TYPE: Number = 2
+        companion object : MessageFactory<Welcome> {
+            override val type = 2
+            override fun create(array: JsonArray) =
+                Welcome(session = array[1].long, details = array[2].jsonObject)
         }
 
         override fun toJsonArray() = jsonArray {
-            +TYPE
+            +(type as Number)
             +session
             +details
         }
     }
 
     internal data class Abort(val details: JsonObject = emptyJsonObject(), val reason: String) : Message() {
-        companion object {
-            val TYPE: Number = 3
+        companion object : MessageFactory<Abort> {
+            override val type = 3
+            override fun create(array: JsonArray) =
+                Abort(details = array[1].jsonObject, reason = array[2].content)
         }
 
         override fun toJsonArray() = jsonArray {
-            +TYPE
+            +(type as Number)
             +details
             +reason
         }
     }
 
     internal data class Goodbye(val details: JsonObject = emptyJsonObject(), val reason: String) : Message() {
-        companion object {
-            val TYPE: Number = 6
+        companion object : MessageFactory<Goodbye> {
+            override val type = 6
+            override fun create(array: JsonArray) =
+                Goodbye(details = array[1].jsonObject, reason = array[2].content)
         }
 
         override fun toJsonArray() = jsonArray {
-            +TYPE
+            +(type as Number)
             +details
             +reason
         }
     }
 
+
+    internal data class Error(
+        override val requestId: RequestId,
+        val originalType: MessageType,
+        val wampErrorUri: String,
+        val details: JsonObject = emptyJsonObject()
+    ) : Message(), RequestMessage {
+        companion object : MessageFactory<Error> {
+            override val type = 8
+            override fun create(array: JsonArray) =
+                Error(
+                    originalType = array[1].int,
+                    requestId = array[2].long,
+                    details = array[3].jsonObject,
+                    wampErrorUri = array[4].content
+                )
+        }
+
+        override fun toJsonArray() = jsonArray {
+            +(type as Number)
+            +(originalType as Number)
+            +(requestId as Number)
+            +details
+            +wampErrorUri
+        }
+    }
+
+
     internal data class Publish(
-        override val requestId: Long,
-        val options: JsonObject,
+        override val requestId: RequestId,
         val topic: String,
         val arguments: JsonArray,
-        val argumentsKw: JsonObject
+        val argumentsKw: JsonObject,
+        val options: JsonObject = emptyJsonObject()
     ) : Message(), RequestMessage {
-        companion object {
-            val TYPE: Number = 16
+        companion object : MessageFactory<Publish> {
+            override val type = 16
+            override fun create(array: JsonArray) =
+                Publish(
+                    requestId = array[1].content.toLong(),
+                    options = array[2].jsonObject,
+                    topic = array[3].content,
+                    arguments = array.getOrNull(4)?.jsonArray ?: emptyJsonArray(),
+                    argumentsKw = array.getOrNull(5)?.jsonObject ?: emptyJsonObject()
+                )
         }
 
         override fun toJsonArray() = jsonArray {
-            +TYPE
+            +(type as Number)
             +(requestId as Number)
             +options
             +topic
-            +JsonArray(arguments)
-            +JsonObject(argumentsKw)
+            +arguments
+            +argumentsKw
         }
     }
 
-    internal data class Published(override val requestId: Long, val publication: Long) : Message(), RequestMessage {
-        companion object {
-            val TYPE: Number = 17
+    internal data class Published(override val requestId: RequestId, val publicationId: PublicationId) : Message(), RequestMessage {
+        companion object : MessageFactory<Published> {
+            override val type = 17
+
+            override fun create(array: JsonArray) =
+                Published(requestId = array[1].content.toLong(), publicationId = array[2].content.toLong())
         }
 
         override fun toJsonArray() = jsonArray {
-            +TYPE
+            +(type as Number)
             +(requestId as Number)
-            +(publication as Number)
+            +(publicationId as Number)
         }
     }
 
-    internal data class Subscribe(override val requestId: Long, val options: JsonObject, val topic: String) : Message(),
+    internal data class Subscribe(override val requestId: RequestId, val topic: String, val options: JsonObject = emptyJsonObject()) : Message(),
         RequestMessage {
-        companion object {
-            val TYPE: Number = 32
+        companion object : MessageFactory<Subscribe> {
+            override val type = 32
+            override fun create(array: JsonArray) =
+                Subscribe(
+                    requestId = array[1].content.toLong(),
+                    options = array[2].jsonObject,
+                    topic = array[3].content
+                )
         }
 
         override fun toJsonArray() = jsonArray {
-            +TYPE
+            +(type as Number)
             +(requestId as Number)
             +options
             +topic
         }
     }
 
-    internal data class Subscribed(override val requestId: Long, val subscription: Long) : Message(), RequestMessage {
-        companion object {
-            val TYPE: Number = 33
+    internal data class Subscribed(override val requestId: RequestId, val subscriptionId: SubscriptionId) : Message(), RequestMessage {
+        companion object : MessageFactory<Subscribed> {
+            override val type = 33
+            override fun create(array: JsonArray) =
+                Subscribed(requestId = array[1].content.toLong(), subscriptionId = array[2].content.toLong())
         }
 
         override fun toJsonArray() = jsonArray {
-            +TYPE
+            +(type as Number)
             +(requestId as Number)
-            +(subscription as Number)
+            +(subscriptionId as Number)
         }
     }
 
-    internal data class Unsubscribe(override val requestId: Long, val subscription: Long) : Message(), RequestMessage {
-        companion object {
-            val TYPE: Number = 34
+    internal data class Unsubscribe(override val requestId: RequestId, val subscriptionId: SubscriptionId) : Message(), RequestMessage {
+        companion object : MessageFactory<Unsubscribe> {
+            override val type = 34
+            override fun create(array: JsonArray) =
+                Unsubscribe(requestId = array[1].content.toLong(), subscriptionId = array[2].content.toLong())
         }
 
         override fun toJsonArray() = jsonArray {
-            +TYPE
+            +(type as Number)
             +(requestId as Number)
-            +(subscription as Number)
+            +(subscriptionId as Number)
         }
     }
 
-    internal data class Unsubscribed(override val requestId: Long) : Message(), RequestMessage {
-        companion object {
-            val TYPE: Number = 35
+    internal data class Unsubscribed(override val requestId: RequestId) : Message(), RequestMessage {
+        companion object : MessageFactory<Unsubscribed> {
+            override val type = 35
+            override fun create(array: JsonArray) =
+                Unsubscribed(requestId = array[1].content.toLong())
         }
 
         override fun toJsonArray() = jsonArray {
-            +TYPE
+            +(type as Number)
             +(requestId as Number)
         }
     }
 
     internal data class Event(
-        val subscription: Long,
-        val publication: Long,
+        val subscriptionId: SubscriptionId,
+        val publicationId: PublicationId,
         val details: JsonObject,
         val arguments: JsonArray,
         val argumentsKw: JsonObject
     ) : Message() {
-        companion object {
-            const val TYPE = 36
+        companion object : MessageFactory<Event> {
+            override val type = 36
+            override fun create(array: JsonArray) =
+                Event(
+                    subscriptionId = array[1].content.toLong(), publicationId = array[2].content.toLong(),
+                    details = array.getOrNull(3)?.jsonObject ?: emptyJsonObject(),
+                    arguments = array.getOrNull(4)?.jsonArray ?: emptyJsonArray(),
+                    argumentsKw = array.getOrNull(5)?.jsonObject ?: emptyJsonObject()
+                )
         }
 
         override fun toJsonArray() = jsonArray {
-            +TYPE
-            +(subscription as Number)
-            +(publication as Number)
+            +(type as Number)
+            +(subscriptionId as Number)
+            +(publicationId as Number)
             +details
-            +JsonArray(arguments)
+            +arguments
             +argumentsKw
         }
     }
@@ -212,35 +287,23 @@ internal fun fromJsonToMessage(messageJson: String): Message {
     return wampMessage.createMessage()
 }
 
-private fun JsonArray.createMessage() = when (this[0].intOrNull) {
-    Hello.TYPE        -> Hello.create(this.drop(0))
-    Welcome.TYPE      -> Welcome(session = this[1].content.toLong(), details = this[2].jsonObject)
-    Abort.TYPE        -> Abort(details = this[1].jsonObject, reason = this[2].content)
-    Goodbye.TYPE      -> Goodbye(details = this[1].jsonObject, reason = this[2].content)
-    Publish.TYPE      -> Publish(
-        requestId = this[1].content.toLong(),
-        options = this[2].jsonObject,
-        topic = this[3].content,
-        arguments = this.getOrNull(4)?.jsonArray ?: emptyJsonArray(),
-        argumentsKw = this.getOrNull(5)?.jsonObject ?: emptyJsonObject()
-    )
-    Published.TYPE    -> Published(requestId = this[1].content.toLong(), publication = this[2].content.toLong())
-    Event.TYPE        -> Event(
-        subscription = this[1].content.toLong(), publication = this[2].content.toLong(),
-        details = this.getOrNull(3)?.jsonObject ?: emptyJsonObject(),
-        arguments = this.getOrNull(4)?.jsonArray ?: emptyJsonArray(),
-        argumentsKw = this.getOrNull(5)?.jsonObject ?: emptyJsonObject()
-    )
-
-    Subscribe.TYPE    -> Subscribe(
-        requestId = this[1].content.toLong(),
-        options = this[2].jsonObject,
-        topic = this[3].content
-    )
-    Subscribed.TYPE   -> Subscribed(requestId = this[1].content.toLong(), subscription = this[2].content.toLong())
-
-    Unsubscribe.TYPE  -> Unsubscribe(requestId = this[1].content.toLong(), subscription = this[2].content.toLong())
-    Unsubscribed.TYPE -> Unsubscribed(requestId = this[1].content.toLong())
-    // TODO add other messages
-    else              -> Abort(details = emptyJsonObject(), reason = "darum")
+private val MESSAGE_FACTORIES: Map<Int, MessageFactory<*>> by lazy {
+    listOf(
+        Hello,
+        Welcome,
+        Goodbye,
+        Abort,
+        Publish,
+        Published,
+        Subscribe,
+        Subscribed,
+        Unsubscribed,
+        Event,
+        Error
+    ).associateBy { it.type }
 }
+
+private fun JsonArray.createMessage(): Message = runCatching {
+    val type = this[0].int
+    MESSAGE_FACTORIES[type]?.create(this) ?: InvalidMessage(this, IllegalArgumentException("Unknown message type"))
+}.getOrElse { InvalidMessage(this, it) }

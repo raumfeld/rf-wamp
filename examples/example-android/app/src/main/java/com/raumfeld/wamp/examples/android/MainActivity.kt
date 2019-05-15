@@ -6,6 +6,8 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.widget.doAfterTextChanged
 import com.raumfeld.wamp.WampClient
+import com.raumfeld.wamp.protocol.SubscriptionId
+import com.raumfeld.wamp.pubsub.SubscriptionData.*
 import com.raumfeld.wamp.session.WampSession
 import com.raumfeld.wamp.websocket.WebSocketCallback
 import com.raumfeld.wamp.websocket.WebSocketDelegate
@@ -13,7 +15,9 @@ import com.raumfeld.wamp.websocket.WebSocketFactory
 import kotlinx.android.synthetic.main.activity_main.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.channels.consumeEach
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.jsonArray
 import okhttp3.*
 
 class MainActivity : AppCompatActivity() {
@@ -22,16 +26,58 @@ class MainActivity : AppCompatActivity() {
     }
 
     private var session: WampSession? = null
+    private var subscriptionId: SubscriptionId? = null
+
+    private fun toast(message: String) {
+        Log.i(TAG, message)
+        GlobalScope.launch(Dispatchers.Main) {
+            Toast.makeText(this@MainActivity, message, Toast.LENGTH_SHORT).show()
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         wsUrl.setText(AppPreferences.wsUrl)
         realm.setText(AppPreferences.realm)
+        subscribeTopic.setText(AppPreferences.subscribeTopic)
+        publishTopic.setText(AppPreferences.publishTopic)
+        publishValue.setText(AppPreferences.publishValue)
 
         wsUrl.doAfterTextChanged { AppPreferences.wsUrl = it.toString() }
         realm.doAfterTextChanged { AppPreferences.realm = it.toString() }
+        subscribeTopic.doAfterTextChanged { AppPreferences.subscribeTopic = it.toString() }
+        publishTopic.doAfterTextChanged { AppPreferences.publishTopic = it.toString() }
+        publishValue.doAfterTextChanged { AppPreferences.publishValue = it.toString() }
 
+        subscribe.setOnClickListener {
+            val channel = session?.subscribe(subscribeTopic.text.toString()) ?: return@setOnClickListener
+            GlobalScope.launch(Dispatchers.Main) {
+                channel.consumeEach {
+                    when (it) {
+                        is SubscriptionEstablished  -> {
+                            subscriptionId = it.subscriptionId
+                            toast("Subscription established")
+                        }
+                        is SubscriptionEventPayload -> toast("Received event: $it")
+                        is SubscriptionFailed       -> {
+                            subscriptionId = null
+                            toast("Subscription failed with: ${it.errorUri}")
+                        }
+                        ClientUnsuscribed           -> toast("We have unsubscribed")
+                    }
+                }
+                toast("Subscription has ended")
+            }
+        }
+        unsubscribe.setOnClickListener {
+            subscriptionId?.let {
+                session?.unsubscribe(it)
+            }
+        }
+        publish.setOnClickListener {
+            session?.publish(publishTopic.text.toString(), jsonArray { +publishValue.text.toString() })
+        }
         leave.setOnClickListener {
             session?.leave()
         }
@@ -44,43 +90,22 @@ class MainActivity : AppCompatActivity() {
                     it.join(realmString, object : WampSession.WampSessionListener {
                         override fun onRealmAborted() {
                             session = null
-                            Log.e(TAG, "Realm was aborted")
-                            GlobalScope.launch(Dispatchers.Main) {
-                                Toast.makeText(
-                                    this@MainActivity,
-                                    "Realm aborted!",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                            }
+                            toast("Realm was aborted")
                         }
 
                         override fun onRealmJoined() {
-                            Log.i(TAG, "Realm was joined")
-                            GlobalScope.launch(Dispatchers.Main) {
-                                Toast.makeText(this@MainActivity, "Success!", Toast.LENGTH_SHORT)
-                                    .show()
-                            }
+                            toast("Realm was joined")
                         }
 
                         override fun onRealmLeft() {
                             session = null
-                            Log.i(TAG, "Realm was left")
-                            GlobalScope.launch(Dispatchers.Main) {
-                                Toast.makeText(this@MainActivity, "Realm left!", Toast.LENGTH_SHORT)
-                                    .show()
-                            }
+                            toast("Realm was left")
                         }
                     })
                 }
                 result.onFailure {
                     Log.e(TAG, "WebSocket failure", it)
-                    GlobalScope.launch(Dispatchers.Main) {
-                        Toast.makeText(
-                            this@MainActivity,
-                            "Could not create session: ${it.message}",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    }
+                    toast("Could not create session")
                 }
             }
         }

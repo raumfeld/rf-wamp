@@ -1,69 +1,159 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_gravity="center"
-    android:layout_margin="20dp"
-    android:orientation="vertical"
-    tools:context=".MainActivity">
-
+    android:layout_margin="20dp">
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:layout_margin="10dp"
-        android:orientation="horizontal">
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        tools:context=".MainActivity">
 
         <TextView
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Enter WS URL:"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintLeft_toLeftOf="parent"
-            app:layout_constraintRight_toRightOf="parent"
-            app:layout_constraintTop_toTopOf="parent" />
+            android:gravity="center"
+            android:text="Realm"
+            android:textAppearance="@style/TextAppearance.AppCompat.Headline" />
 
-        <EditText
-            android:id="@+id/wsUrl"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1" />
-    </LinearLayout>
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_margin="10dp"
+            android:orientation="horizontal">
 
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:layout_margin="10dp"
-        android:orientation="horizontal">
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Enter WS URL:" />
+
+            <EditText
+                android:id="@+id/wsUrl"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_margin="10dp"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Enter Realm:" />
+
+            <EditText
+                android:id="@+id/realm"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1" />
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/join"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_margin="10dp"
+            android:text="Join" />
+
+        <Button
+            android:id="@+id/leave"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_margin="10dp"
+            android:text="Leave" />
 
         <TextView
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Enter Realm:"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintLeft_toLeftOf="parent"
-            app:layout_constraintRight_toRightOf="parent"
-            app:layout_constraintTop_toTopOf="parent" />
+            android:gravity="center"
+            android:text="Subscribe"
+            android:textAppearance="@style/TextAppearance.AppCompat.Headline" />
 
-        <EditText
-            android:id="@+id/realm"
-            android:layout_width="0dp"
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_margin="10dp"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Topic:" />
+
+            <EditText
+                android:id="@+id/subscribeTopic"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <Button
+                android:id="@+id/subscribe"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_margin="10dp"
+                android:layout_weight="1"
+                android:text="Subscribe" />
+
+            <Button
+                android:id="@+id/unsubscribe"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_margin="10dp"
+                android:layout_weight="1"
+                android:text="Unsubscribe" />
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1" />
+            android:gravity="center"
+            android:text="Publish"
+            android:textAppearance="@style/TextAppearance.AppCompat.Headline" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_margin="10dp"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Topic:" />
+
+            <EditText
+                android:id="@+id/publishTopic"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Value:" />
+
+            <EditText
+                android:id="@+id/publishValue"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1" />
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/publish"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_margin="10dp"
+            android:text="Publish" />
     </LinearLayout>
-
-    <Button
-        android:id="@+id/join"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:layout_margin="10dp"
-        android:text="Join!" />
-
-    <Button
-        android:id="@+id/leave"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:layout_margin="10dp"
-        android:text="Leave!" />
-</LinearLayout>
+</ScrollView>

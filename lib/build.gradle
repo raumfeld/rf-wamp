@@ -33,7 +33,6 @@ kotlin {
     android {
         publishAllLibraryVariants()
     }
-
     // this fails with "A POM cannot have multiple artifacts with the same type and classifier"
 //    jvm()
 
@@ -84,6 +83,18 @@ kotlin {
             }
         }
         iosTest {
+        }
+    }
+
+    // This should work, but it does not. *screams at the Gradle gods*
+    targets.all {
+        compilations.all {
+            kotlinOptions {
+                freeCompilerArgs = [
+                        '-Xuse-experimental=kotlinx.coroutines.ExperimentalCoroutinesApi',
+                        '-Xuse-experimental=kotlinx.coroutines.ObsoleteCoroutinesApi',
+                        '-Xallow-result-return-type']
+            }
         }
     }
 }
