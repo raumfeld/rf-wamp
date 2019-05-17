@@ -6,8 +6,11 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.widget.doAfterTextChanged
 import com.raumfeld.wamp.WampClient
+import com.raumfeld.wamp.protocol.RegistrationId
 import com.raumfeld.wamp.protocol.SubscriptionId
 import com.raumfeld.wamp.pubsub.SubscriptionEvent.*
+import com.raumfeld.wamp.rpc.CalleeEvent
+import com.raumfeld.wamp.rpc.CallerEvent
 import com.raumfeld.wamp.session.WampSession
 import com.raumfeld.wamp.websocket.WebSocketCallback
 import com.raumfeld.wamp.websocket.WebSocketDelegate
@@ -27,6 +30,7 @@ class MainActivity : AppCompatActivity() {
 
     private var session: WampSession? = null
     private var subscriptionId: SubscriptionId? = null
+    private var registrationId: RegistrationId? = null
 
     private fun toast(message: String) {
         Log.i(TAG, message)
@@ -38,18 +42,56 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-        wsUrl.setText(AppPreferences.wsUrl)
-        realm.setText(AppPreferences.realm)
-        subscribeTopic.setText(AppPreferences.subscribeTopic)
-        publishTopic.setText(AppPreferences.publishTopic)
-        publishValue.setText(AppPreferences.publishValue)
 
-        wsUrl.doAfterTextChanged { AppPreferences.wsUrl = it.toString() }
-        realm.doAfterTextChanged { AppPreferences.realm = it.toString() }
-        subscribeTopic.doAfterTextChanged { AppPreferences.subscribeTopic = it.toString() }
-        publishTopic.doAfterTextChanged { AppPreferences.publishTopic = it.toString() }
-        publishValue.doAfterTextChanged { AppPreferences.publishValue = it.toString() }
+        setupTextInputs()
 
+        setupButtons()
+    }
+
+    private fun setupButtons() {
+        call.setOnClickListener {
+            val channel =
+                session?.call(callProcedureUri.text.toString(), jsonArray { +callProcedureArgument.text.toString() })
+                    ?: return@setOnClickListener
+            GlobalScope.launch(Dispatchers.Main) {
+                channel.consumeEach {
+                    when (it) {
+                        is CallerEvent.Result     -> toast("Call returned: ${it.arguments}\n${it.argumentsKw}")
+                        is CallerEvent.CallFailed -> toast("Call failed: ${it.errorUri}")
+                    }
+                }
+            }
+        }
+        unregister.setOnClickListener {
+            GlobalScope.launch(Dispatchers.Main) {
+                registrationId?.let {
+                    session?.unregister(it)
+                }
+
+            }
+        }
+        register.setOnClickListener {
+            val channel = session?.register(registerProcedureUri.text.toString()) ?: return@setOnClickListener
+            val result = jsonArray { +registerProcedureReturn.text.toString() }
+            GlobalScope.launch(Dispatchers.Main) {
+                channel.consumeEach {
+                    when (it) {
+                        is CalleeEvent.ProcedureRegistered -> {
+                            registrationId = it.registrationId
+                            toast("Procedure was registered successfully")
+                        }
+                        is CalleeEvent.Invocation          -> {
+                            toast(
+                                "Received invocation: ${it.arguments}\n" +
+                                        "${it.argumentsKw}\nReturning $result"
+                            )
+                            it.returnResult(CallerEvent.Result(result))
+                        }
+                        is CalleeEvent.RegistrationFailed  -> toast("Procedure could not be registered: ${it.errorUri}")
+                    }
+                }
+            }
+        }
         subscribe.setOnClickListener {
             val channel = session?.subscribe(subscribeTopic.text.toString()) ?: return@setOnClickListener
             GlobalScope.launch(Dispatchers.Main) {
@@ -59,7 +101,7 @@ class MainActivity : AppCompatActivity() {
                             subscriptionId = it.subscriptionId
                             toast("Subscription established")
                         }
-                        is Payload                 -> toast("Received event: $it")
+                        is Payload                 -> toast("Received event: ${it.arguments}\n${it.argumentsKw}")
                         is SubscriptionFailed      -> {
                             subscriptionId = null
                             toast("Subscription failed with: ${it.errorUri}")
@@ -109,6 +151,28 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    private fun setupTextInputs() {
+        wsUrl.setText(AppPreferences.wsUrl)
+        realm.setText(AppPreferences.realm)
+        subscribeTopic.setText(AppPreferences.subscribeTopic)
+        publishTopic.setText(AppPreferences.publishTopic)
+        publishValue.setText(AppPreferences.publishValue)
+        callProcedureUri.setText(AppPreferences.callUri)
+        callProcedureArgument.setText(AppPreferences.callArgument)
+        registerProcedureUri.setText(AppPreferences.registerUri)
+        registerProcedureReturn.setText(AppPreferences.registerReturn)
+
+        wsUrl.doAfterTextChanged { AppPreferences.wsUrl = it.toString() }
+        realm.doAfterTextChanged { AppPreferences.realm = it.toString() }
+        subscribeTopic.doAfterTextChanged { AppPreferences.subscribeTopic = it.toString() }
+        publishTopic.doAfterTextChanged { AppPreferences.publishTopic = it.toString() }
+        publishValue.doAfterTextChanged { AppPreferences.publishValue = it.toString() }
+        callProcedureUri.doAfterTextChanged { AppPreferences.callUri = it.toString() }
+        callProcedureArgument.doAfterTextChanged { AppPreferences.callArgument = it.toString() }
+        registerProcedureUri.doAfterTextChanged { AppPreferences.registerUri = it.toString() }
+        registerProcedureReturn.doAfterTextChanged { AppPreferences.registerReturn = it.toString() }
     }
 
     class OkHttpWebSocketDelegate(val webSocket: WebSocket) : WebSocketDelegate {

@@ -8,4 +8,8 @@ object AppPreferences : KotprefModel() {
     var subscribeTopic by nullableStringPref()
     var publishTopic by nullableStringPref()
     var publishValue by nullableStringPref()
+    var callUri by nullableStringPref()
+    var callArgument by nullableStringPref()
+    var registerUri by nullableStringPref()
+    var registerReturn by nullableStringPref()
 }
