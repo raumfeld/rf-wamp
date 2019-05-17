@@ -34,14 +34,16 @@ From: https://wamp-proto.org/_static/gen/wamp_latest.html#protocol-overview
 | 70  | `YIELD`        |      |      |      |       | Rx    | Tx    |
  */
 
-interface RequestMessage {
+internal interface RequestMessage {
     val requestId: RequestId
 }
 
 typealias RequestId = Long
 typealias SubscriptionId = Long
 typealias PublicationId = Long
+typealias RegistrationId = Long
 typealias MessageType = Int
+typealias ProcedureId = String
 
 private interface MessageFactory<out T : Message> {
     val type: MessageType
@@ -153,7 +155,7 @@ internal sealed class Message {
             override val type = 16
             override fun create(array: JsonArray) =
                 Publish(
-                    requestId = array[1].content.toLong(),
+                    requestId = array[1].long,
                     options = array[2].jsonObject,
                     topic = array[3].content,
                     arguments = array.getOrNull(4)?.jsonArray ?: emptyJsonArray(),
@@ -171,12 +173,13 @@ internal sealed class Message {
         }
     }
 
-    internal data class Published(override val requestId: RequestId, val publicationId: PublicationId) : Message(), RequestMessage {
+    internal data class Published(override val requestId: RequestId, val publicationId: PublicationId) : Message(),
+        RequestMessage {
         companion object : MessageFactory<Published> {
             override val type = 17
 
             override fun create(array: JsonArray) =
-                Published(requestId = array[1].content.toLong(), publicationId = array[2].content.toLong())
+                Published(requestId = array[1].long, publicationId = array[2].long)
         }
 
         override fun toJsonArray() = jsonArray {
@@ -186,13 +189,17 @@ internal sealed class Message {
         }
     }
 
-    internal data class Subscribe(override val requestId: RequestId, val topic: String, val options: JsonObject = emptyJsonObject()) : Message(),
+    internal data class Subscribe(
+        override val requestId: RequestId,
+        val topic: String,
+        val options: JsonObject = emptyJsonObject()
+    ) : Message(),
         RequestMessage {
         companion object : MessageFactory<Subscribe> {
             override val type = 32
             override fun create(array: JsonArray) =
                 Subscribe(
-                    requestId = array[1].content.toLong(),
+                    requestId = array[1].long,
                     options = array[2].jsonObject,
                     topic = array[3].content
                 )
@@ -206,11 +213,12 @@ internal sealed class Message {
         }
     }
 
-    internal data class Subscribed(override val requestId: RequestId, val subscriptionId: SubscriptionId) : Message(), RequestMessage {
+    internal data class Subscribed(override val requestId: RequestId, val subscriptionId: SubscriptionId) : Message(),
+        RequestMessage {
         companion object : MessageFactory<Subscribed> {
             override val type = 33
             override fun create(array: JsonArray) =
-                Subscribed(requestId = array[1].content.toLong(), subscriptionId = array[2].content.toLong())
+                Subscribed(requestId = array[1].long, subscriptionId = array[2].long)
         }
 
         override fun toJsonArray() = jsonArray {
@@ -220,11 +228,12 @@ internal sealed class Message {
         }
     }
 
-    internal data class Unsubscribe(override val requestId: RequestId, val subscriptionId: SubscriptionId) : Message(), RequestMessage {
+    internal data class Unsubscribe(override val requestId: RequestId, val subscriptionId: SubscriptionId) : Message(),
+        RequestMessage {
         companion object : MessageFactory<Unsubscribe> {
             override val type = 34
             override fun create(array: JsonArray) =
-                Unsubscribe(requestId = array[1].content.toLong(), subscriptionId = array[2].content.toLong())
+                Unsubscribe(requestId = array[1].long, subscriptionId = array[2].long)
         }
 
         override fun toJsonArray() = jsonArray {
@@ -238,7 +247,7 @@ internal sealed class Message {
         companion object : MessageFactory<Unsubscribed> {
             override val type = 35
             override fun create(array: JsonArray) =
-                Unsubscribed(requestId = array[1].content.toLong())
+                Unsubscribed(requestId = array[1].long)
         }
 
         override fun toJsonArray() = jsonArray {
@@ -258,10 +267,10 @@ internal sealed class Message {
             override val type = 36
             override fun create(array: JsonArray) =
                 Event(
-                    subscriptionId = array[1].content.toLong(), publicationId = array[2].content.toLong(),
-                    details = array.getOrNull(3)?.jsonObject ?: emptyJsonObject(),
-                    arguments = array.getOrNull(4)?.jsonArray ?: emptyJsonArray(),
-                    argumentsKw = array.getOrNull(5)?.jsonObject ?: emptyJsonObject()
+                    subscriptionId = array[1].long, publicationId = array[2].long,
+                    details = array.getObjectOrNull(3) ?: emptyJsonObject(),
+                    arguments = array.getArrayOrNull(4) ?: emptyJsonArray(),
+                    argumentsKw = array.getObjectOrNull(5) ?: emptyJsonObject()
                 )
         }
 
@@ -269,6 +278,186 @@ internal sealed class Message {
             +(type as Number)
             +(subscriptionId as Number)
             +(publicationId as Number)
+            +details
+            +arguments
+            +argumentsKw
+        }
+    }
+
+    internal data class Register(
+        override val requestId: RequestId,
+        val procedureId: ProcedureId,
+        val options: JsonObject = emptyJsonObject()
+    ) : Message(),
+        RequestMessage {
+        companion object : MessageFactory<Register> {
+            override val type = 64
+            override fun create(array: JsonArray) =
+                Register(
+                    requestId = array[1].long,
+                    options = array[2].jsonObject,
+                    procedureId = array[3].content
+                )
+        }
+
+        override fun toJsonArray() = jsonArray {
+            +(type as Number)
+            +(requestId as Number)
+            +options
+            +procedureId
+        }
+    }
+
+    internal data class Registered(override val requestId: RequestId, val registrationId: RegistrationId) : Message(),
+        RequestMessage {
+        companion object : MessageFactory<Registered> {
+            override val type = 65
+            override fun create(array: JsonArray) =
+                Registered(requestId = array[1].long, registrationId = array[2].long)
+        }
+
+        override fun toJsonArray() = jsonArray {
+            +(type as Number)
+            +(requestId as Number)
+            +(registrationId as Number)
+        }
+    }
+
+    internal data class Unregister(override val requestId: RequestId, val registrationId: RegistrationId) : Message(),
+        RequestMessage {
+        companion object : MessageFactory<Unregister> {
+            override val type = 66
+            override fun create(array: JsonArray) =
+                Unregister(
+                    requestId = array[1].long,
+                    registrationId = array[2].long
+                )
+        }
+
+        override fun toJsonArray() = jsonArray {
+            +(type as Number)
+            +(requestId as Number)
+            +(registrationId as Number)
+        }
+    }
+
+    internal data class Unregistered(override val requestId: RequestId) : Message(), RequestMessage {
+        companion object : MessageFactory<Unregistered> {
+            override val type = 67
+            override fun create(array: JsonArray) =
+                Unregistered(requestId = array[1].long)
+        }
+
+        override fun toJsonArray() = jsonArray {
+            +(type as Number)
+            +(requestId as Number)
+        }
+    }
+
+    internal data class Call(
+        override val requestId: RequestId,
+        val procedureId: ProcedureId,
+        val arguments: JsonArray,
+        val argumentsKw: JsonObject,
+        val options: JsonObject = emptyJsonObject()
+    ) : Message(),
+        RequestMessage {
+        companion object : MessageFactory<Unregister> {
+            override val type = 48
+            override fun create(array: JsonArray) =
+                Unregister(
+                    requestId = array[1].long,
+                    registrationId = array[2].long
+                )
+        }
+
+        override fun toJsonArray() = jsonArray {
+            +(type as Number)
+            +(requestId as Number)
+            +options
+            +procedureId
+            +arguments
+            +argumentsKw
+        }
+    }
+
+    internal data class Invocation(
+        override val requestId: RequestId,
+        val registrationId: RegistrationId,
+        val arguments: JsonArray,
+        val argumentsKw: JsonObject,
+        val details: JsonObject = emptyJsonObject()
+    ) : Message(),
+        RequestMessage {
+        companion object : MessageFactory<Invocation> {
+            override val type = 68
+            override fun create(array: JsonArray) =
+                Invocation(
+                    requestId = array[1].long,
+                    registrationId = array[2].long,
+                    details = array[3].jsonObject,
+                    arguments = array.getArrayOrNull(4) ?: emptyJsonArray(),
+                    argumentsKw = array.getObjectOrNull(5) ?: emptyJsonObject()
+                )
+        }
+
+        override fun toJsonArray() = jsonArray {
+            +(type as Number)
+            +(requestId as Number)
+            +(registrationId as Number)
+            +details
+            +arguments
+            +argumentsKw
+        }
+    }
+
+    internal data class Yield(
+        override val requestId: RequestId,
+        val arguments: JsonArray,
+        val argumentsKw: JsonObject,
+        val options: JsonObject = emptyJsonObject()
+    ) : Message(),
+        RequestMessage {
+        companion object : MessageFactory<Yield> {
+            override val type = 70
+            override fun create(array: JsonArray) =
+                Yield(
+                    requestId = array[1].long,
+                    options = array[2].jsonObject,
+                    arguments = array.getArrayOrNull(3) ?: emptyJsonArray(),
+                    argumentsKw = array.getObjectOrNull(4) ?: emptyJsonObject()
+                )
+        }
+
+        override fun toJsonArray() = jsonArray {
+            +(type as Number)
+            +(requestId as Number)
+            +options
+            +arguments
+            +argumentsKw
+        }
+    }
+    internal data class Result(
+        override val requestId: RequestId,
+        val arguments: JsonArray,
+        val argumentsKw: JsonObject,
+        val details: JsonObject = emptyJsonObject()
+    ) : Message(),
+        RequestMessage {
+        companion object : MessageFactory<Result> {
+            override val type = 50
+            override fun create(array: JsonArray) =
+                Result(
+                    requestId = array[1].long,
+                    details = array[2].jsonObject,
+                    arguments = array.getArrayOrNull(3) ?: emptyJsonArray(),
+                    argumentsKw = array.getObjectOrNull(4) ?: emptyJsonObject()
+                )
+        }
+
+        override fun toJsonArray() = jsonArray {
+            +(type as Number)
+            +(requestId as Number)
             +details
             +arguments
             +argumentsKw

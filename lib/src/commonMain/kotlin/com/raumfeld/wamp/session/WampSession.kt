@@ -51,10 +51,9 @@ class WampSession(
         object Leave : Trigger()
     }
 
-
     private var eventChannel = Channel<Trigger>()
 
-    // INTERNAL STATE MUST ONLY BE MUTATED INSIDE OUR CONTEXT
+    // INTERNAL STATE MUST ONLY BE MUTATED FROM INSIDE OUR CONTEXT
     private var realm: String? = null
     private var sessionListener: WampSessionListener? = null
     private var state = INITIAL
@@ -297,6 +296,8 @@ class WampSession(
                 "roles" to json {
                     "publisher" to emptyJsonObject()
                     "subscriber" to emptyJsonObject()
+                    "caller" to emptyJsonObject()
+                    "callee" to emptyJsonObject()
                 }
             }
         )
