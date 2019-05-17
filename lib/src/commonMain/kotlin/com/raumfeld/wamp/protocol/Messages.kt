@@ -487,6 +487,14 @@ private val MESSAGE_FACTORIES: Map<Int, MessageFactory<*>> by lazy {
         Subscribe,
         Subscribed,
         Unsubscribed,
+        Call,
+        Register,
+        Registered,
+        Unregister,
+        Unregistered,
+        Yield,
+        Result,
+        Invocation,
         Event,
         Error
     ).associateBy { it.type }

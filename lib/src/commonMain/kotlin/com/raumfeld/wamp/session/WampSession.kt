@@ -119,7 +119,11 @@ class WampSession(
 
     fun unregister(registrationId: RegistrationId) = dispatch(Unregister(registrationId))
 
-    fun call(procedureId: ProcedureId, arguments: JsonArray, argumentsKw: JsonObject): ReceiveChannel<CallerEvent> =
+    fun call(
+        procedureId: ProcedureId,
+        arguments: JsonArray = emptyJsonArray(),
+        argumentsKw: JsonObject = emptyJsonObject()
+    ): ReceiveChannel<CallerEvent> =
         Channel<CallerEvent>().also {
             dispatch(Call(procedureId, arguments, argumentsKw, it))
         }
@@ -198,10 +202,46 @@ class WampSession(
             is Subscribe       -> setupSubscription(trigger.topic, trigger.eventChannel)
             is Unsubscribe     -> doUnsubscribe(trigger.subscriptionId)
             is Publish         -> doPublish(trigger.topic, trigger.arguments, trigger.argumentsKw)
+            is Register        -> doRegister(trigger.procedureId, trigger.eventChannel)
+            is Unregister      -> doUnregister(trigger.registrationId)
+            is Call            -> doCall(
+                trigger.procedureId,
+                trigger.arguments,
+                trigger.argumentsKw,
+                trigger.eventChannel
+            )
+            is Yield           -> doYield(trigger.requestId, trigger.arguments, trigger.argumentsKw)
             is Leave           -> sendGoodbye()
             is Error           -> sendError(trigger.errorType, trigger.requestId, trigger.wampErrorUri)
             else               -> failTransition(trigger)
         }
+    }
+
+    private fun doYield(requestId: RequestId, arguments: JsonArray, argumentsKw: JsonObject) =
+        send(Message.Yield(requestId, arguments, argumentsKw))
+
+    private fun doUnregister(registrationId: RegistrationId) {
+        val channel = registrations[registrationId]
+        if (channel != null) {
+            send(Message.Unregister(RandomIdGenerator.newId(), registrationId))
+        }
+    }
+
+    private fun doRegister(procedureId: ProcedureId, eventChannel: SendChannel<CalleeEvent>) {
+        val requestId = RandomIdGenerator.newId()
+        pendingRegistrations[requestId] = eventChannel
+        send(Message.Register(requestId, procedureId))
+    }
+
+    private fun doCall(
+        procedureId: ProcedureId,
+        arguments: JsonArray,
+        argumentsKw: JsonObject,
+        eventChannel: SendChannel<CallerEvent>
+    ) {
+        val requestId = RandomIdGenerator.newId()
+        pendingCalls[requestId] = eventChannel
+        send(Message.Call(requestId, procedureId, arguments, argumentsKw))
     }
 
     private fun sendError(errorType: MessageType, requestId: RequestId, wampErrorUri: String) =
