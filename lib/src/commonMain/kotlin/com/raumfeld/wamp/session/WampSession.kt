@@ -7,6 +7,7 @@ import com.raumfeld.wamp.rpc.CalleeEvent
 import com.raumfeld.wamp.rpc.CallerEvent
 import com.raumfeld.wamp.session.WampSession.State.*
 import com.raumfeld.wamp.session.WampSession.Trigger.*
+import com.raumfeld.wamp.websocket.WebSocketCloseCodes
 import com.raumfeld.wamp.websocket.WebSocketDelegate
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.cancel
@@ -148,23 +149,27 @@ class WampSession(
         }
     }
 
-    private fun evaluateClosed(trigger: Trigger) {
-        failTransition(trigger)
-    }
+    private fun evaluateClosed(trigger: Trigger) =
+        if (trigger is MessageReceived)
+            onProtocolViolated("Session is closed. We cannot process messages.")
+        else
+            failTransition(trigger)
 
     private fun evaluateClosing(trigger: Trigger) = when (trigger) {
         is MessageReceived -> {
             when (trigger.message) {
                 is Message.Goodbye -> onGoodbyeReceived()
-                else               -> onProtocolViolated()
+                else               -> onProtocolViolated("Received unexpected message. Expected 'Goodbye'.")
             }
         }
         else               -> failTransition(trigger)
     }
 
-    private fun evaluatedAborted(trigger: Trigger) {
-        failTransition(trigger)
-    }
+    private fun evaluatedAborted(trigger: Trigger) =
+        if (trigger is MessageReceived)
+            onProtocolViolated("Session is aborted. We cannot process messages.")
+        else
+            failTransition(trigger)
 
     private suspend fun evaluateJoined(trigger: Trigger) {
         when (trigger) {
@@ -196,7 +201,7 @@ class WampSession(
                         message.requestId,
                         message.wampErrorUri
                     )
-                    else                    -> failTransition(trigger)
+                    else                    -> onProtocolViolated("Received unexpected message.")
                 }
             }
             is Subscribe       -> setupSubscription(trigger.topic, trigger.eventChannel)
@@ -248,9 +253,11 @@ class WampSession(
         send(Message.Error(requestId, errorType, wampErrorUri))
 
     private suspend fun onResultReceived(requestId: RequestId, arguments: JsonArray, argumentsKw: JsonObject) {
-        // Regarding the early return:
-        // The spec does not say anything about this case, so I guess we just ignore RESULT messages that we are not interested in
-        val eventChannel = pendingCalls.remove(requestId) ?: return
+        val eventChannel = pendingCalls.remove(requestId)
+        if (eventChannel == null) {
+            onProtocolViolated("Received RESULT that we have no pending call for. RequestId = $requestId")
+            return
+        }
         eventChannel.send(CallerEvent.Result(arguments, argumentsKw))
     }
 
@@ -260,9 +267,11 @@ class WampSession(
         arguments: JsonArray,
         argumentsKw: JsonObject
     ) {
-        // Regarding the early return:
-        // The spec does not say anything about this case, so I guess we just ignore INVOCATION messages that we are not interested in
-        val eventChannel = registrations[registrationId] ?: return
+        val eventChannel = registrations[registrationId]
+        if (eventChannel == null) {
+            onProtocolViolated("Received INVOCATION that we have no pending call for. RequestId = $requestId")
+            return
+        }
         eventChannel.send(CalleeEvent.Invocation(arguments, argumentsKw) { yieldResult(requestId, it) })
     }
 
@@ -275,16 +284,17 @@ class WampSession(
         )
 
     private suspend fun onRegisteredReceived(requestId: RequestId, registrationId: RegistrationId) {
-        // Regarding the early return:
-        // The spec does not say anything about this case, so I guess we just ignore REGISTERED messages that we are not interested in
-        val eventChannel = pendingRegistrations.remove(requestId) ?: return
+        val eventChannel = pendingRegistrations.remove(requestId)
+        if (eventChannel == null) {
+            onProtocolViolated("Received REGISTERED that we have no pending call for. RequestId = $requestId")
+            return
+        }
         registrations[registrationId] = eventChannel
         eventChannel.send(CalleeEvent.ProcedureRegistered(registrationId))
     }
 
-    private fun doPublish(topic: String, arguments: JsonArray, argumentsKw: JsonObject) {
+    private fun doPublish(topic: String, arguments: JsonArray, argumentsKw: JsonObject) =
         send(Message.Publish(RandomIdGenerator.newId(), topic, arguments, argumentsKw))
-    }
 
     private suspend fun doUnsubscribe(subscriptionId: SubscriptionId) {
         val channel = subscriptions.remove(subscriptionId)
@@ -317,7 +327,7 @@ class WampSession(
             Message.Subscribe.type  -> failSubscription(requestId, wampErrorUri)
             Message.Register.type   -> failRegistration(requestId, wampErrorUri)
             Message.Call.type       -> failCall(requestId, wampErrorUri)
-            else                    -> Unit // Spec doesn't say anything about this
+            else                    -> onProtocolViolated("Received invalid REQUEST.type: $errorType")
         }
     }
 
@@ -330,17 +340,21 @@ class WampSession(
     }
 
     private suspend fun failRegistration(requestId: RequestId, wampErrorUri: String) {
-        // Regarding the early return:
-        // The spec does not say anything about this case, so I guess we just ignore ERROR REGISTER messages that we are not interested in
-        val eventChannel = pendingRegistrations.remove(requestId) ?: return
+        val eventChannel = pendingRegistrations.remove(requestId)
+        if (eventChannel == null) {
+            onProtocolViolated("Received REGISTER ERROR that we have no pending registration for. RequestId = $requestId ERROR uri = $wampErrorUri")
+            return
+        }
         eventChannel.send(CalleeEvent.RegistrationFailed(wampErrorUri))
         eventChannel.close()
     }
 
     private suspend fun failSubscription(requestId: RequestId, wampErrorUri: String) {
-        // Regarding the early return:
-        // The spec does not say anything about this case, so I guess we just ignore ERROR SUBSCRIBE messages that we are not interested in
-        val eventChannel = pendingSubscriptions.remove(requestId) ?: return
+        val eventChannel = pendingSubscriptions.remove(requestId)
+        if (eventChannel == null) {
+            onProtocolViolated("Received SUBSCRIBE ERROR that we have no pending subscription for. RequestId = $requestId ERROR uri = $wampErrorUri")
+            return
+        }
         eventChannel.send(SubscriptionEvent.SubscriptionFailed(wampErrorUri))
         eventChannel.close()
     }
@@ -354,16 +368,20 @@ class WampSession(
         arguments: JsonArray,
         argumentsKw: JsonObject
     ) {
-        // Regarding the early return:
-        // The spec does not say anything about this case, so I guess we just ignore EVENT messages that we are not interested in
-        val eventChannel = subscriptions[subscriptionId] ?: return
+        val eventChannel = subscriptions[subscriptionId]
+        if (eventChannel == null) {
+            onProtocolViolated("Received EVENT that we have no pending subscription for. subscriptionId = $SubscriptionId")
+            return
+        }
         eventChannel.send(SubscriptionEvent.Payload(arguments, argumentsKw))
     }
 
     private suspend fun onSubscribedReceived(requestId: RequestId, subscriptionId: SubscriptionId) {
-        // Regarding the early return:
-        // The spec does not say anything about this case, so I guess we just ignore SUBSCRIBED messages that we are not interested in
-        val eventChannel = pendingSubscriptions.remove(requestId) ?: return
+        val eventChannel = pendingSubscriptions.remove(requestId)
+        if (eventChannel == null) {
+            onProtocolViolated("Received SUBSCRIBED that we have no pending subscription for. requestId = $requestId subscriptionId = $subscriptionId")
+            return
+        }
         subscriptions[subscriptionId] = eventChannel
         eventChannel.send(SubscriptionEvent.SubscriptionEstablished(subscriptionId))
     }
@@ -381,7 +399,7 @@ class WampSession(
             when (trigger.message) {
                 is Message.Welcome -> onWelcomeReceived()
                 is Message.Abort   -> onAbortReceived()
-                else               -> onProtocolViolated()
+                else               -> onProtocolViolated("Illegal message received. Expected 'Welcome' or 'Abort'.")
             }
         }
         is Leave           -> sendAbort(WampClose.SYSTEM_SHUTDOWN)
@@ -402,11 +420,11 @@ class WampSession(
     private fun onAbortReceived() {
         state = ABORTED
         sessionListener?.onRealmAborted()
-        abortWebSocket()
+        webSocketDelegate.close(WebSocketCloseCodes.GOING_AWAY, "Received ABORT")
     }
 
     private fun evaluateInitial(trigger: Trigger) = when (trigger) {
-        is MessageReceived -> onProtocolViolated()
+        is MessageReceived -> onProtocolViolated("Not ready to receive messages yet. Session has not been established.")
         is Join            -> sendHello(trigger.realm)
         else               -> failTransition(trigger)
     }
@@ -420,19 +438,20 @@ class WampSession(
         send(message)
     }
 
-    private fun onProtocolViolated() = sendAbort(WampClose.PROTOCOL_VIOLATION)
+    private fun onProtocolViolated(message: String = "Received illegal message") =
+        sendAbort(WampClose.PROTOCOL_VIOLATION, json {
+            "message" to message
+        })
 
-    private fun sendAbort(reason: WampClose) {
+    private fun sendAbort(reason: WampClose, details: JsonObject = emptyJsonObject()) {
         state = ABORTED
         sessionListener?.onRealmAborted()
-        val message = Message.Abort(reason = reason.content)
+        val message = Message.Abort(reason = reason.content, details = details)
         send(message)
-        abortWebSocket()
+        webSocketDelegate.close(reason.webSocketCloseCode, "Session aborted")
     }
 
-    private fun closeWebSocket() = webSocketDelegate.close(1001, "Session closed")
-
-    private fun abortWebSocket() = webSocketDelegate.close(1001, "Session aborted")
+    private fun closeWebSocket() = webSocketDelegate.close(WebSocketCloseCodes.GOING_AWAY, "Session closed")
 
     private fun sendHello(realm: String) {
         state = JOINING
