@@ -7,7 +7,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.widget.doAfterTextChanged
 import com.raumfeld.wamp.WampClient
 import com.raumfeld.wamp.protocol.SubscriptionId
-import com.raumfeld.wamp.pubsub.SubscriptionData.*
+import com.raumfeld.wamp.pubsub.SubscriptionEvent.*
 import com.raumfeld.wamp.session.WampSession
 import com.raumfeld.wamp.websocket.WebSocketCallback
 import com.raumfeld.wamp.websocket.WebSocketDelegate
@@ -55,16 +55,16 @@ class MainActivity : AppCompatActivity() {
             GlobalScope.launch(Dispatchers.Main) {
                 channel.consumeEach {
                     when (it) {
-                        is SubscriptionEstablished  -> {
+                        is SubscriptionEstablished -> {
                             subscriptionId = it.subscriptionId
                             toast("Subscription established")
                         }
-                        is SubscriptionEventPayload -> toast("Received event: $it")
-                        is SubscriptionFailed       -> {
+                        is Payload                 -> toast("Received event: $it")
+                        is SubscriptionFailed      -> {
                             subscriptionId = null
                             toast("Subscription failed with: ${it.errorUri}")
                         }
-                        ClientUnsuscribed           -> toast("We have unsubscribed")
+                        ClientUnsubscribed         -> toast("We have unsubscribed")
                     }
                 }
                 toast("Subscription has ended")

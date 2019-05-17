@@ -2,9 +2,9 @@ package com.raumfeld.wamp.session
 
 import com.raumfeld.wamp.RandomIdGenerator
 import com.raumfeld.wamp.protocol.*
-import com.raumfeld.wamp.protocol.Message
-import com.raumfeld.wamp.protocol.fromJsonToMessage
-import com.raumfeld.wamp.pubsub.SubscriptionData
+import com.raumfeld.wamp.pubsub.SubscriptionEvent
+import com.raumfeld.wamp.rpc.CalleeEvent
+import com.raumfeld.wamp.rpc.CallerEvent
 import com.raumfeld.wamp.session.WampSession.State.*
 import com.raumfeld.wamp.session.WampSession.Trigger.*
 import com.raumfeld.wamp.websocket.WebSocketDelegate
@@ -45,8 +45,25 @@ class WampSession(
     private sealed class Trigger {
         data class MessageReceived(val message: Message) : Trigger()
         data class Join(val realm: String) : Trigger()
-        data class Subscribe(val topic: String, val eventChannel: SendChannel<SubscriptionData>) : Trigger()
+        data class Subscribe(val topic: String, val eventChannel: SendChannel<SubscriptionEvent>) : Trigger()
         data class Unsubscribe(val subscriptionId: SubscriptionId) : Trigger()
+        data class Register(val procedureId: ProcedureId, val eventChannel: SendChannel<CalleeEvent>) : Trigger()
+        data class Unregister(val registrationId: RegistrationId) : Trigger()
+        data class Call(
+            val procedureId: ProcedureId,
+            val arguments: JsonArray,
+            val argumentsKw: JsonObject,
+            val eventChannel: SendChannel<CallerEvent>
+        ) : Trigger()
+
+        data class Yield(
+            val requestId: RequestId,
+            val arguments: JsonArray,
+            val argumentsKw: JsonObject
+        ) : Trigger()
+
+        data class Error(val errorType: MessageType, val requestId: RequestId, val wampErrorUri: String) : Trigger()
+
         data class Publish(val topic: String, val arguments: JsonArray, val argumentsKw: JsonObject) : Trigger()
         object Leave : Trigger()
     }
@@ -58,8 +75,11 @@ class WampSession(
     private var sessionListener: WampSessionListener? = null
     private var state = INITIAL
     private val scope = CoroutineScope(context)
-    private val pendingSubscriptions = mutableMapOf<RequestId, SendChannel<SubscriptionData>>()
-    private val subscriptions = mutableMapOf<SubscriptionId, SendChannel<SubscriptionData>>()
+    private val pendingSubscriptions = mutableMapOf<RequestId, SendChannel<SubscriptionEvent>>()
+    private val subscriptions = mutableMapOf<SubscriptionId, SendChannel<SubscriptionEvent>>()
+    private val pendingRegistrations = mutableMapOf<RequestId, SendChannel<CalleeEvent>>()
+    private val registrations = mutableMapOf<RegistrationId, SendChannel<CalleeEvent>>()
+    private val pendingCalls = mutableMapOf<RequestId, SendChannel<CallerEvent>>()
 
     init {
         scope.launch {
@@ -82,17 +102,27 @@ class WampSession(
         dispatch(Leave)
     }
 
-    fun subscribe(topic: String): ReceiveChannel<SubscriptionData> =
-        Channel<SubscriptionData>().also {
+    fun subscribe(topic: String): ReceiveChannel<SubscriptionEvent> =
+        Channel<SubscriptionEvent>().also {
             dispatch(Subscribe(topic, it))
         }
 
-    fun unsubscribe(subscriptionId: SubscriptionId) {
-        dispatch(Unsubscribe(subscriptionId))
-    }
+    fun unsubscribe(subscriptionId: SubscriptionId) = dispatch(Unsubscribe(subscriptionId))
 
     fun publish(topic: String, arguments: JsonArray = emptyJsonArray(), argumentsKw: JsonObject = emptyJsonObject()) =
         dispatch(Publish(topic, arguments, argumentsKw))
+
+    fun register(procedureId: ProcedureId): ReceiveChannel<CalleeEvent> =
+        Channel<CalleeEvent>().also {
+            dispatch(Register(procedureId, it))
+        }
+
+    fun unregister(registrationId: RegistrationId) = dispatch(Unregister(registrationId))
+
+    fun call(procedureId: ProcedureId, arguments: JsonArray, argumentsKw: JsonObject): ReceiveChannel<CallerEvent> =
+        Channel<CallerEvent>().also {
+            dispatch(Call(procedureId, arguments, argumentsKw, it))
+        }
 
     private suspend fun evaluate(trigger: Trigger) {
         when (state) {
@@ -144,6 +174,19 @@ class WampSession(
                         message.argumentsKw
                     )
                     is Message.Published    -> onPublishedReceived()
+                    is Message.Registered   -> onRegisteredReceived(message.requestId, message.registrationId)
+                    is Message.Unregistered -> onUnregisteredReceived()
+                    is Message.Invocation   -> onInvocationReceived(
+                        message.registrationId,
+                        message.requestId,
+                        message.arguments,
+                        message.argumentsKw
+                    )
+                    is Message.Result       -> onResultReceived(
+                        message.requestId,
+                        message.arguments,
+                        message.argumentsKw
+                    )
                     is Message.Error        -> onErrorReceived(
                         message.originalType,
                         message.requestId,
@@ -156,8 +199,47 @@ class WampSession(
             is Unsubscribe     -> doUnsubscribe(trigger.subscriptionId)
             is Publish         -> doPublish(trigger.topic, trigger.arguments, trigger.argumentsKw)
             is Leave           -> sendGoodbye()
+            is Error           -> sendError(trigger.errorType, trigger.requestId, trigger.wampErrorUri)
             else               -> failTransition(trigger)
         }
+    }
+
+    private fun sendError(errorType: MessageType, requestId: RequestId, wampErrorUri: String) =
+        send(Message.Error(requestId, errorType, wampErrorUri))
+
+    private suspend fun onResultReceived(requestId: RequestId, arguments: JsonArray, argumentsKw: JsonObject) {
+        // Regarding the early return:
+        // The spec does not say anything about this case, so I guess we just ignore RESULT messages that we are not interested in
+        val eventChannel = pendingCalls.remove(requestId) ?: return
+        eventChannel.send(CallerEvent.Result(arguments, argumentsKw))
+    }
+
+    private suspend fun onInvocationReceived(
+        registrationId: RegistrationId,
+        requestId: RequestId,
+        arguments: JsonArray,
+        argumentsKw: JsonObject
+    ) {
+        // Regarding the early return:
+        // The spec does not say anything about this case, so I guess we just ignore INVOCATION messages that we are not interested in
+        val eventChannel = registrations[registrationId] ?: return
+        eventChannel.send(CalleeEvent.Invocation(arguments, argumentsKw) { yieldResult(requestId, it) })
+    }
+
+    private fun yieldResult(requestId: RequestId, result: CallerEvent) =
+        dispatch(
+            when (result) {
+                is CallerEvent.CallFailed -> Error(Message.Invocation.type, requestId, result.errorUri)
+                is CallerEvent.Result     -> Yield(requestId, result.arguments, result.argumentsKw)
+            }
+        )
+
+    private suspend fun onRegisteredReceived(requestId: RequestId, registrationId: RegistrationId) {
+        // Regarding the early return:
+        // The spec does not say anything about this case, so I guess we just ignore REGISTERED messages that we are not interested in
+        val eventChannel = pendingRegistrations.remove(requestId) ?: return
+        registrations[registrationId] = eventChannel
+        eventChannel.send(CalleeEvent.ProcedureRegistered(registrationId))
     }
 
     private fun doPublish(topic: String, arguments: JsonArray, argumentsKw: JsonObject) {
@@ -168,12 +250,12 @@ class WampSession(
         val channel = subscriptions.remove(subscriptionId)
         // don't send a request if we don't even have a local subscriber running
         if (channel != null) {
-            channel.send(SubscriptionData.ClientUnsuscribed)
+            channel.send(SubscriptionEvent.ClientUnsubscribed)
             send(Message.Unsubscribe(RandomIdGenerator.newId(), subscriptionId))
         }
     }
 
-    private fun setupSubscription(topic: String, eventChannel: SendChannel<SubscriptionData>) {
+    private fun setupSubscription(topic: String, eventChannel: SendChannel<SubscriptionEvent>) {
         val requestId = RandomIdGenerator.newId()
         pendingSubscriptions[requestId] = eventChannel
         sendSubscribe(requestId, topic)
@@ -190,16 +272,36 @@ class WampSession(
         wampErrorUri: String
     ) {
         when (errorType) {
-            Message.Subscribe.type -> failSubscription(requestId, wampErrorUri)
-            else                   -> Unit // Spec doesn't say anything about this
+            Message.Unsubscribe.type,
+            Message.Unregister.type -> Unit // don't care, it's too late now, we've already cleaned up everything
+            Message.Subscribe.type  -> failSubscription(requestId, wampErrorUri)
+            Message.Register.type   -> failRegistration(requestId, wampErrorUri)
+            Message.Call.type       -> failCall(requestId, wampErrorUri)
+            else                    -> Unit // Spec doesn't say anything about this
         }
+    }
+
+    private suspend fun failCall(requestId: RequestId, wampErrorUri: String) {
+        // Regarding the early return:
+        // The spec does not say anything about this case, so I guess we just ignore ERROR CALL messages that we are not interested in
+        val eventChannel = pendingCalls.remove(requestId) ?: return
+        eventChannel.send(CallerEvent.CallFailed(wampErrorUri))
+        eventChannel.close()
+    }
+
+    private suspend fun failRegistration(requestId: RequestId, wampErrorUri: String) {
+        // Regarding the early return:
+        // The spec does not say anything about this case, so I guess we just ignore ERROR REGISTER messages that we are not interested in
+        val eventChannel = pendingRegistrations.remove(requestId) ?: return
+        eventChannel.send(CalleeEvent.RegistrationFailed(wampErrorUri))
+        eventChannel.close()
     }
 
     private suspend fun failSubscription(requestId: RequestId, wampErrorUri: String) {
         // Regarding the early return:
-        // The spec does not say anything about this case, so I guess we just ignore SUBSCRIBED messages that we are not interested in
+        // The spec does not say anything about this case, so I guess we just ignore ERROR SUBSCRIBE messages that we are not interested in
         val eventChannel = pendingSubscriptions.remove(requestId) ?: return
-        eventChannel.send(SubscriptionData.SubscriptionFailed(wampErrorUri))
+        eventChannel.send(SubscriptionEvent.SubscriptionFailed(wampErrorUri))
         eventChannel.close()
     }
 
@@ -215,7 +317,7 @@ class WampSession(
         // Regarding the early return:
         // The spec does not say anything about this case, so I guess we just ignore EVENT messages that we are not interested in
         val eventChannel = subscriptions[subscriptionId] ?: return
-        eventChannel.send(SubscriptionData.SubscriptionEventPayload(arguments, argumentsKw))
+        eventChannel.send(SubscriptionEvent.Payload(arguments, argumentsKw))
     }
 
     private suspend fun onSubscribedReceived(requestId: RequestId, subscriptionId: SubscriptionId) {
@@ -223,11 +325,15 @@ class WampSession(
         // The spec does not say anything about this case, so I guess we just ignore SUBSCRIBED messages that we are not interested in
         val eventChannel = pendingSubscriptions.remove(requestId) ?: return
         subscriptions[subscriptionId] = eventChannel
-        eventChannel.send(SubscriptionData.SubscriptionEstablished(subscriptionId))
+        eventChannel.send(SubscriptionEvent.SubscriptionEstablished(subscriptionId))
     }
 
     private fun onUnsubscribedReceived() {
-        // We don't do anything special here. We've cleaned up everything when sent the original UNSUBSCRIBE.
+        // We don't do anything special here. We've cleaned up everything when we sent the original UNSUBSCRIBE.
+    }
+
+    private fun onUnregisteredReceived() {
+        // We don't do anything special here. We've cleaned up everything when we sent the original UNREGISTER.
     }
 
     private fun evaluateJoining(trigger: Trigger) = when (trigger) {
