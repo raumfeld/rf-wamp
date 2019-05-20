@@ -189,7 +189,7 @@ class MainActivity : AppCompatActivity() {
     class OkHttpWebSocketFactory : WebSocketFactory {
         val WebSocket.delegate get() = OkHttpWebSocketDelegate(this)
 
-        override fun createWebsocket(uri: String, callback: WebSocketCallback) {
+        override fun createWebSocket(uri: String, callback: WebSocketCallback) {
             val request =
                 Request.Builder().url(uri).header("Sec-WebSocket-Protocol", "wamp.2.json").build()
             OkHttpClient().newWebSocket(request, object : WebSocketListener() {

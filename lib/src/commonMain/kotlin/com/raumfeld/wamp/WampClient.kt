@@ -7,15 +7,18 @@ import com.raumfeld.wamp.websocket.WebSocketFactory
 import kotlin.Result.Companion.failure
 import kotlin.Result.Companion.success
 
-class WampClient(private val socketFactory: WebSocketFactory) {
+class WampClient(
+    private val socketFactory: WebSocketFactory,
+    private val sessionFactory: (WebSocketDelegate) -> WampSession = { WampSession(it) }
+) {
 
     fun createSession(uri: String, callback: (Result<WampSession>) -> Unit) {
-        socketFactory.createWebsocket(uri, object : WebSocketCallback {
+        socketFactory.createWebSocket(uri, object : WebSocketCallback {
 
             private var session: WampSession? = null
 
             override fun onOpen(webSocketDelegate: WebSocketDelegate) {
-                session = WampSession(webSocketDelegate).apply {
+                session = sessionFactory(webSocketDelegate).apply {
                     callback(success(this))
                 }
             }
