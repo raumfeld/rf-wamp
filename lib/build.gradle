@@ -54,6 +54,7 @@ kotlin {
             dependencies {
                 implementation kotlin('test-common')
                 implementation kotlin('test-annotations-common')
+                implementation "io.mockk:mockk-common:$mockk_version"
             }
         }
         androidMain {
@@ -71,9 +72,11 @@ kotlin {
             }
         }
         androidTest {
+            dependsOn commonTest
             dependencies {
                 implementation kotlin('test')
                 implementation kotlin('test-junit')
+                implementation "io.mockk:mockk:$mockk_version"
             }
         }
         iosMain {
