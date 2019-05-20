@@ -11,7 +11,7 @@ import kotlin.Result.Companion.success
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 
-class WampClientTest {
+class WampClientTests {
 
     companion object {
         const val WS_URI = "ws://localhost:55555/ws"

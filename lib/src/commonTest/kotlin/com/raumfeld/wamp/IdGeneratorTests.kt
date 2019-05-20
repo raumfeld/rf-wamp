@@ -3,7 +3,7 @@ package com.raumfeld.wamp
 import kotlin.test.Test
 import kotlin.test.expect
 
-class IdGeneratorTest {
+class IdGeneratorTests {
 
     private fun withGenerator(ids: MutableCollection<Long>, block: IdGenerator.(resetCounter: () -> Unit) -> Unit) {
         var idCounter = 0L
