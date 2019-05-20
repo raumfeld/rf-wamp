@@ -55,7 +55,7 @@ internal sealed class Message {
 
     fun toJson() = Json.stringify(JsonArray.serializer(), toJsonArray())
 
-    internal data class InvalidMessage(val originalMessage: JsonArray, val throwable: Throwable) : Message() {
+    internal data class InvalidMessage(val originalMessage: String, val throwable: Throwable) : Message() {
         override fun toJsonArray() = error("You mustn't serialize this!")
     }
 
@@ -83,7 +83,7 @@ internal sealed class Message {
 
         override fun toJsonArray() = jsonArray {
             +(type as Number)
-            +session
+            +(session as Number)
             +details
         }
     }
@@ -121,6 +121,8 @@ internal sealed class Message {
         override val requestId: RequestId,
         val originalType: MessageType,
         val wampErrorUri: String,
+        val arguments: JsonArray? = null,
+        val argumentsKw: JsonObject? = null,
         val details: JsonObject = emptyJsonObject()
     ) : Message(), RequestMessage {
         companion object : MessageFactory<Error> {
@@ -130,7 +132,9 @@ internal sealed class Message {
                     originalType = array[1].int,
                     requestId = array[2].long,
                     details = array[3].jsonObject,
-                    wampErrorUri = array[4].content
+                    wampErrorUri = array[4].content,
+                    arguments = array.getArrayOrNull(5),
+                    argumentsKw = array.getObjectOrNull(6)
                 )
         }
 
@@ -140,6 +144,8 @@ internal sealed class Message {
             +(requestId as Number)
             +details
             +wampErrorUri
+            arguments?.let { +it }
+            argumentsKw?.let { +it }
         }
     }
 
@@ -147,8 +153,8 @@ internal sealed class Message {
     internal data class Publish(
         override val requestId: RequestId,
         val topic: String,
-        val arguments: JsonArray,
-        val argumentsKw: JsonObject,
+        val arguments: JsonArray?,
+        val argumentsKw: JsonObject?,
         val options: JsonObject = emptyJsonObject()
     ) : Message(), RequestMessage {
         companion object : MessageFactory<Publish> {
@@ -158,8 +164,8 @@ internal sealed class Message {
                     requestId = array[1].long,
                     options = array[2].jsonObject,
                     topic = array[3].content,
-                    arguments = array.getOrNull(4)?.jsonArray ?: emptyJsonArray(),
-                    argumentsKw = array.getOrNull(5)?.jsonObject ?: emptyJsonObject()
+                    arguments = array.getOrNull(4)?.jsonArray,
+                    argumentsKw = array.getOrNull(5)?.jsonObject
                 )
         }
 
@@ -168,8 +174,8 @@ internal sealed class Message {
             +(requestId as Number)
             +options
             +topic
-            +arguments
-            +argumentsKw
+            arguments?.let { +it }
+            argumentsKw?.let { +it }
         }
     }
 
@@ -260,8 +266,8 @@ internal sealed class Message {
         val subscriptionId: SubscriptionId,
         val publicationId: PublicationId,
         val details: JsonObject,
-        val arguments: JsonArray,
-        val argumentsKw: JsonObject
+        val arguments: JsonArray?,
+        val argumentsKw: JsonObject?
     ) : Message() {
         companion object : MessageFactory<Event> {
             override val type = 36
@@ -269,8 +275,8 @@ internal sealed class Message {
                 Event(
                     subscriptionId = array[1].long, publicationId = array[2].long,
                     details = array.getObjectOrNull(3) ?: emptyJsonObject(),
-                    arguments = array.getArrayOrNull(4) ?: emptyJsonArray(),
-                    argumentsKw = array.getObjectOrNull(5) ?: emptyJsonObject()
+                    arguments = array.getArrayOrNull(4),
+                    argumentsKw = array.getObjectOrNull(5)
                 )
         }
 
@@ -279,8 +285,8 @@ internal sealed class Message {
             +(subscriptionId as Number)
             +(publicationId as Number)
             +details
-            +arguments
-            +argumentsKw
+            arguments?.let { +it }
+            argumentsKw?.let { +it }
         }
     }
 
@@ -357,17 +363,20 @@ internal sealed class Message {
     internal data class Call(
         override val requestId: RequestId,
         val procedureId: ProcedureId,
-        val arguments: JsonArray,
-        val argumentsKw: JsonObject,
+        val arguments: JsonArray?,
+        val argumentsKw: JsonObject?,
         val options: JsonObject = emptyJsonObject()
     ) : Message(),
         RequestMessage {
-        companion object : MessageFactory<Unregister> {
+        companion object : MessageFactory<Call> {
             override val type = 48
             override fun create(array: JsonArray) =
-                Unregister(
+                Call(
                     requestId = array[1].long,
-                    registrationId = array[2].long
+                    options = array[2].jsonObject,
+                    procedureId = array[3].content,
+                    arguments = array.getArrayOrNull(4),
+                    argumentsKw = array.getObjectOrNull(5)
                 )
         }
 
@@ -376,16 +385,16 @@ internal sealed class Message {
             +(requestId as Number)
             +options
             +procedureId
-            +arguments
-            +argumentsKw
+            arguments?.let { +it }
+            argumentsKw?.let { +it }
         }
     }
 
     internal data class Invocation(
         override val requestId: RequestId,
         val registrationId: RegistrationId,
-        val arguments: JsonArray,
-        val argumentsKw: JsonObject,
+        val arguments: JsonArray?,
+        val argumentsKw: JsonObject?,
         val details: JsonObject = emptyJsonObject()
     ) : Message(),
         RequestMessage {
@@ -396,8 +405,8 @@ internal sealed class Message {
                     requestId = array[1].long,
                     registrationId = array[2].long,
                     details = array[3].jsonObject,
-                    arguments = array.getArrayOrNull(4) ?: emptyJsonArray(),
-                    argumentsKw = array.getObjectOrNull(5) ?: emptyJsonObject()
+                    arguments = array.getArrayOrNull(4),
+                    argumentsKw = array.getObjectOrNull(5)
                 )
         }
 
@@ -406,15 +415,15 @@ internal sealed class Message {
             +(requestId as Number)
             +(registrationId as Number)
             +details
-            +arguments
-            +argumentsKw
+            arguments?.let { +it }
+            argumentsKw?.let { +it }
         }
     }
 
     internal data class Yield(
         override val requestId: RequestId,
-        val arguments: JsonArray,
-        val argumentsKw: JsonObject,
+        val arguments: JsonArray?,
+        val argumentsKw: JsonObject?,
         val options: JsonObject = emptyJsonObject()
     ) : Message(),
         RequestMessage {
@@ -424,8 +433,8 @@ internal sealed class Message {
                 Yield(
                     requestId = array[1].long,
                     options = array[2].jsonObject,
-                    arguments = array.getArrayOrNull(3) ?: emptyJsonArray(),
-                    argumentsKw = array.getObjectOrNull(4) ?: emptyJsonObject()
+                    arguments = array.getArrayOrNull(3),
+                    argumentsKw = array.getObjectOrNull(4)
                 )
         }
 
@@ -433,14 +442,15 @@ internal sealed class Message {
             +(type as Number)
             +(requestId as Number)
             +options
-            +arguments
-            +argumentsKw
+            arguments?.let { +it }
+            argumentsKw?.let { +it }
         }
     }
+
     internal data class Result(
         override val requestId: RequestId,
-        val arguments: JsonArray,
-        val argumentsKw: JsonObject,
+        val arguments: JsonArray?,
+        val argumentsKw: JsonObject?,
         val details: JsonObject = emptyJsonObject()
     ) : Message(),
         RequestMessage {
@@ -450,8 +460,8 @@ internal sealed class Message {
                 Result(
                     requestId = array[1].long,
                     details = array[2].jsonObject,
-                    arguments = array.getArrayOrNull(3) ?: emptyJsonArray(),
-                    argumentsKw = array.getObjectOrNull(4) ?: emptyJsonObject()
+                    arguments = array.getArrayOrNull(3),
+                    argumentsKw = array.getObjectOrNull(4)
                 )
         }
 
@@ -459,8 +469,8 @@ internal sealed class Message {
             +(type as Number)
             +(requestId as Number)
             +details
-            +arguments
-            +argumentsKw
+            arguments?.let { +it }
+            argumentsKw?.let { +it }
         }
     }
 }
@@ -471,10 +481,10 @@ inline fun emptyJsonArray() = jsonArray { }
 @Suppress("NOTHING_TO_INLINE")
 inline fun emptyJsonObject() = json { }
 
-internal fun fromJsonToMessage(messageJson: String): Message {
-    val wampMessage = Json.parse(JsonArraySerializer, messageJson)
-    return wampMessage.createMessage()
-}
+internal fun fromJsonToMessage(messageJson: String): Message = runCatching {
+    val jsonArray = Json.parse(JsonArraySerializer, messageJson)
+    return jsonArray.createMessage()
+}.getOrElse { InvalidMessage(messageJson, it) }
 
 private val MESSAGE_FACTORIES: Map<Int, MessageFactory<*>> by lazy {
     listOf(
@@ -486,6 +496,7 @@ private val MESSAGE_FACTORIES: Map<Int, MessageFactory<*>> by lazy {
         Published,
         Subscribe,
         Subscribed,
+        Unsubscribe,
         Unsubscribed,
         Call,
         Register,
@@ -500,7 +511,8 @@ private val MESSAGE_FACTORIES: Map<Int, MessageFactory<*>> by lazy {
     ).associateBy { it.type }
 }
 
-private fun JsonArray.createMessage(): Message = runCatching {
+private fun JsonArray.createMessage(): Message {
     val type = this[0].int
-    MESSAGE_FACTORIES[type]?.create(this) ?: InvalidMessage(this, IllegalArgumentException("Unknown message type"))
-}.getOrElse { InvalidMessage(this, it) }
+    return MESSAGE_FACTORIES[type]?.create(this) ?: throw IllegalArgumentException("Unknown message type")
+}
+

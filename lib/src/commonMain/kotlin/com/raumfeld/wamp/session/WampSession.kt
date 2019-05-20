@@ -54,20 +54,20 @@ class WampSession(
         data class Unregister(val registrationId: RegistrationId) : Trigger()
         data class Call(
             val procedureId: ProcedureId,
-            val arguments: JsonArray,
-            val argumentsKw: JsonObject,
+            val arguments: JsonArray?,
+            val argumentsKw: JsonObject?,
             val eventChannel: SendChannel<CallerEvent>
         ) : Trigger()
 
         data class Yield(
             val requestId: RequestId,
-            val arguments: JsonArray,
-            val argumentsKw: JsonObject
+            val arguments: JsonArray?,
+            val argumentsKw: JsonObject?
         ) : Trigger()
 
         data class Error(val errorType: MessageType, val requestId: RequestId, val wampErrorUri: String) : Trigger()
 
-        data class Publish(val topic: String, val arguments: JsonArray, val argumentsKw: JsonObject) : Trigger()
+        data class Publish(val topic: String, val arguments: JsonArray?, val argumentsKw: JsonObject?) : Trigger()
         object Leave : Trigger()
     }
 
@@ -233,7 +233,7 @@ class WampSession(
         }
     }
 
-    private fun doYield(requestId: RequestId, arguments: JsonArray, argumentsKw: JsonObject) =
+    private fun doYield(requestId: RequestId, arguments: JsonArray?, argumentsKw: JsonObject?) =
         send(Message.Yield(requestId, arguments, argumentsKw))
 
     private fun doUnregister(registrationId: RegistrationId) {
@@ -251,8 +251,8 @@ class WampSession(
 
     private fun doCall(
         procedureId: ProcedureId,
-        arguments: JsonArray,
-        argumentsKw: JsonObject,
+        arguments: JsonArray?,
+        argumentsKw: JsonObject?,
         eventChannel: SendChannel<CallerEvent>
     ) {
         val requestId = idGenerator.newId()
@@ -263,7 +263,7 @@ class WampSession(
     private fun sendError(errorType: MessageType, requestId: RequestId, wampErrorUri: String) =
         send(Message.Error(requestId, errorType, wampErrorUri))
 
-    private suspend fun onResultReceived(requestId: RequestId, arguments: JsonArray, argumentsKw: JsonObject) {
+    private suspend fun onResultReceived(requestId: RequestId, arguments: JsonArray?, argumentsKw: JsonObject?) {
         val eventChannel = pendingCalls.remove(requestId)
         if (eventChannel == null) {
             onProtocolViolated("Received RESULT that we have no pending call for. RequestId = $requestId")
@@ -275,8 +275,8 @@ class WampSession(
     private suspend fun onInvocationReceived(
         registrationId: RegistrationId,
         requestId: RequestId,
-        arguments: JsonArray,
-        argumentsKw: JsonObject
+        arguments: JsonArray?,
+        argumentsKw: JsonObject?
     ) {
         val eventChannel = registrations[registrationId]
         if (eventChannel == null) {
@@ -304,7 +304,7 @@ class WampSession(
         eventChannel.send(CalleeEvent.ProcedureRegistered(registrationId))
     }
 
-    private fun doPublish(topic: String, arguments: JsonArray, argumentsKw: JsonObject) =
+    private fun doPublish(topic: String, arguments: JsonArray?, argumentsKw: JsonObject?) =
         send(Message.Publish(idGenerator.newId(), topic, arguments, argumentsKw))
 
     private suspend fun doUnsubscribe(subscriptionId: SubscriptionId) {
@@ -376,8 +376,8 @@ class WampSession(
 
     private suspend fun onEventReceived(
         subscriptionId: SubscriptionId,
-        arguments: JsonArray,
-        argumentsKw: JsonObject
+        arguments: JsonArray?,
+        argumentsKw: JsonObject?
     ) {
         val eventChannel = subscriptions[subscriptionId]
         if (eventChannel == null) {
