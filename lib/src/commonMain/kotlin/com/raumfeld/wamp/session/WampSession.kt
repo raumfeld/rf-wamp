@@ -1,6 +1,6 @@
 package com.raumfeld.wamp.session
 
-import com.raumfeld.wamp.RandomIdGenerator
+import com.raumfeld.wamp.IdGenerator
 import com.raumfeld.wamp.protocol.*
 import com.raumfeld.wamp.pubsub.SubscriptionEvent
 import com.raumfeld.wamp.rpc.CalleeEvent
@@ -25,6 +25,7 @@ expect val wampContextFactory: () -> CoroutineContext
 
 class WampSession(
     private val webSocketDelegate: WebSocketDelegate,
+    private val idGenerator: IdGenerator = IdGenerator(),
     context: CoroutineContext = wampContextFactory()
 ) {
 
@@ -145,7 +146,7 @@ class WampSession(
     // we need these IDs only until we've received them back from the broker for correlation
     private fun releaseId(trigger: Trigger) {
         if (trigger is MessageReceived && trigger.message is RequestMessage) {
-            RandomIdGenerator.releaseId(trigger.message.requestId)
+            idGenerator.releaseId(trigger.message.requestId)
         }
     }
 
@@ -228,12 +229,12 @@ class WampSession(
     private fun doUnregister(registrationId: RegistrationId) {
         val channel = registrations[registrationId]
         if (channel != null) {
-            send(Message.Unregister(RandomIdGenerator.newId(), registrationId))
+            send(Message.Unregister(idGenerator.newId(), registrationId))
         }
     }
 
     private fun doRegister(procedureId: ProcedureId, eventChannel: SendChannel<CalleeEvent>) {
-        val requestId = RandomIdGenerator.newId()
+        val requestId = idGenerator.newId()
         pendingRegistrations[requestId] = eventChannel
         send(Message.Register(requestId, procedureId))
     }
@@ -244,7 +245,7 @@ class WampSession(
         argumentsKw: JsonObject,
         eventChannel: SendChannel<CallerEvent>
     ) {
-        val requestId = RandomIdGenerator.newId()
+        val requestId = idGenerator.newId()
         pendingCalls[requestId] = eventChannel
         send(Message.Call(requestId, procedureId, arguments, argumentsKw))
     }
@@ -294,19 +295,19 @@ class WampSession(
     }
 
     private fun doPublish(topic: String, arguments: JsonArray, argumentsKw: JsonObject) =
-        send(Message.Publish(RandomIdGenerator.newId(), topic, arguments, argumentsKw))
+        send(Message.Publish(idGenerator.newId(), topic, arguments, argumentsKw))
 
     private suspend fun doUnsubscribe(subscriptionId: SubscriptionId) {
         val channel = subscriptions.remove(subscriptionId)
         // don't send a request if we don't even have a local subscriber running
         if (channel != null) {
             channel.send(SubscriptionEvent.ClientUnsubscribed)
-            send(Message.Unsubscribe(RandomIdGenerator.newId(), subscriptionId))
+            send(Message.Unsubscribe(idGenerator.newId(), subscriptionId))
         }
     }
 
     private fun setupSubscription(topic: String, eventChannel: SendChannel<SubscriptionEvent>) {
-        val requestId = RandomIdGenerator.newId()
+        val requestId = idGenerator.newId()
         pendingSubscriptions[requestId] = eventChannel
         sendSubscribe(requestId, topic)
     }
