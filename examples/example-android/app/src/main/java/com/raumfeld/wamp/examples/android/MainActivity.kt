@@ -22,6 +22,7 @@ import kotlinx.coroutines.channels.consumeEach
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.jsonArray
 import okhttp3.*
+import okio.ByteString
 
 class MainActivity : AppCompatActivity() {
     companion object {
@@ -197,6 +198,9 @@ class MainActivity : AppCompatActivity() {
 
                 override fun onMessage(webSocket: WebSocket, text: String) =
                     callback.onMessage(webSocket.delegate, text)
+
+                override fun onMessage(webSocket: WebSocket, bytes: ByteString) =
+                    callback.onMessage(webSocket.delegate, bytes.toByteArray())
 
                 override fun onClosing(webSocket: WebSocket, code: Int, reason: String) =
                     callback.onClosing(webSocket.delegate, code, reason)

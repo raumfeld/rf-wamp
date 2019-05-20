@@ -46,6 +46,7 @@ class WampSession(
 
     private sealed class Trigger {
         data class MessageReceived(val message: Message) : Trigger()
+        object BinaryMessageReceived : Trigger()
         data class Join(val realm: String) : Trigger()
         data class Subscribe(val topic: String, val eventChannel: SendChannel<SubscriptionEvent>) : Trigger()
         data class Unsubscribe(val subscriptionId: SubscriptionId) : Trigger()
@@ -131,6 +132,10 @@ class WampSession(
         }
 
     private suspend fun evaluate(trigger: Trigger) {
+        if (!ensureNonBinaryMessage(trigger)) {
+            return
+        }
+
         when (state) {
             INITIAL -> evaluateInitial(trigger)
             JOINING -> evaluateJoining(trigger)
@@ -142,6 +147,11 @@ class WampSession(
 
         releaseId(trigger)
     }
+
+    private fun ensureNonBinaryMessage(trigger: Trigger) = if (trigger is BinaryMessageReceived) {
+        onProtocolViolated("Received binary message. This is not supported by this client.")
+        false
+    } else true
 
     // we need these IDs only until we've received them back from the broker for correlation
     private fun releaseId(trigger: Trigger) {
@@ -483,6 +493,10 @@ class WampSession(
     internal fun onMessage(messageJson: String) {
         val message = fromJsonToMessage(messageJson)
         dispatch(MessageReceived(message))
+    }
+
+    internal fun onBinaryMessageReceived() {
+        dispatch(BinaryMessageReceived)
     }
 
     internal fun onClosed(code: Int, reason: String) {

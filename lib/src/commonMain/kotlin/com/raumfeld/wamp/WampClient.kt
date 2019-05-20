@@ -24,6 +24,10 @@ class WampClient(private val socketFactory: WebSocketFactory) {
                 session?.onMessage(text)
             }
 
+            override fun onMessage(webSocketDelegate: WebSocketDelegate, bytes: ByteArray) {
+                session?.onBinaryMessageReceived()
+            }
+
             override fun onClosing(webSocketDelegate: WebSocketDelegate, code: Int, reason: String) = Unit
 
             override fun onClosed(webSocketDelegate: WebSocketDelegate, code: Int, reason: String) {
