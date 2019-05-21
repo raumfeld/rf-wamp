@@ -18,7 +18,7 @@ class MessageTests {
     }
 
     @Test
-    fun shouldInvalidJson() {
+    fun shouldHandleInvalidJson() {
         val invalidJson = "[{where did my braces go.."
         val message = fromJsonToMessage(invalidJson)
         assertTrue(message is Message.InvalidMessage)
