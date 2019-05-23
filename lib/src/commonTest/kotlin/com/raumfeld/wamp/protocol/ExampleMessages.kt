@@ -43,6 +43,33 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
         Message.Abort(reason = "wamp.close.system_shutdown")
     ),
     /**
+     * [ABORT, Details|dict, Reason|uri]
+     */
+    ABORT_PROTOCOL_VIOLATION_NO_DETAILS(
+        """[3,{},"wamp.error.protocol_violation"]""",
+        Message.Abort(reason = "wamp.error.protocol_violation")
+    ),
+    /**
+     * [ABORT, Details|dict, Reason|uri]
+     */
+    ABORT_PROTOCOL_VIOLATION_AFTER_HELLO(
+        """[3,{"message":"Illegal message received. Expected 'Welcome' or 'Abort'."},"wamp.error.protocol_violation"]""",
+        Message.Abort(
+            details = json { "message" to "Illegal message received. Expected 'Welcome' or 'Abort'." },
+            reason = "wamp.error.protocol_violation"
+        )
+    ),
+    /**
+     * [ABORT, Details|dict, Reason|uri]
+     */
+    ABORT_PROTOCOL_VIOLATION_UNEXPECTED_MESSAGE(
+        """[3,{"message":"Received unexpected message."},"wamp.error.protocol_violation"]""",
+        Message.Abort(
+            details = json { "message" to "Received unexpected message." },
+            reason = "wamp.error.protocol_violation"
+        )
+    ),
+    /**
      * [GOODBYE, Details|dict, Reason|uri]
      */
     GOODBYE_SHUTDOWN_WITH_MESSAGE(

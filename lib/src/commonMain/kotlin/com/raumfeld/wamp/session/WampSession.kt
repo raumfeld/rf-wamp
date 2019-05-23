@@ -209,8 +209,13 @@ class WampSession(
                         message.requestId,
                         message.wampErrorUri
                     )
-                    is Message.Goodbye      -> onGoodbyeReceived(mustShutdown = message.reason == WampClose.SYSTEM_SHUTDOWN.content)
-                    else                    -> onProtocolViolated("Received unexpected message.")
+                    is Message.Goodbye      ->
+                        if (message.reason != WampClose.GOODBYE_AND_OUT.content)
+                            onGoodbyeReceived(mustShutdown = message.reason == WampClose.SYSTEM_SHUTDOWN.content)
+                        else
+                            onProtocolViolated()
+                    is Message.Abort        -> onAbort(reason = message.reason, throwable = null)
+                    else                    -> onProtocolViolated()
                 }
             }
             is Subscribe       -> setupSubscription(trigger.topic, trigger.eventChannel)
@@ -298,7 +303,7 @@ class WampSession(
     private suspend fun onRegisteredReceived(requestId: RequestId, registrationId: RegistrationId) {
         val eventChannel = pendingRegistrations.remove(requestId)
         if (eventChannel == null) {
-            onProtocolViolated("Received REGISTERED that we have no pending call for. RequestId = $requestId")
+            onProtocolViolated("Received REGISTERED that we have no pending registration for. RequestId = $requestId")
             return
         }
         registrations[registrationId] = eventChannel
@@ -339,14 +344,16 @@ class WampSession(
             Message.Subscribe.type  -> failSubscription(requestId, wampErrorUri)
             Message.Register.type   -> failRegistration(requestId, wampErrorUri)
             Message.Call.type       -> failCall(requestId, wampErrorUri)
-            else                    -> onProtocolViolated("Received invalid REQUEST.type: $errorType")
+            else                    -> onProtocolViolated("Received invalid REQUEST. Type: $errorType")
         }
     }
 
     private suspend fun failCall(requestId: RequestId, wampErrorUri: String) {
-        // Regarding the early return:
-        // The spec does not say anything about this case, so I guess we just ignore ERROR CALL messages that we are not interested in
-        val eventChannel = pendingCalls.remove(requestId) ?: return
+        val eventChannel = pendingCalls.remove(requestId)
+        if (eventChannel == null) {
+            onProtocolViolated("Received CALL ERROR that we have no pending call for. RequestId = $requestId ERROR uri = $wampErrorUri")
+            return
+        }
         eventChannel.send(CallerEvent.CallFailed(wampErrorUri))
         eventChannel.close()
     }
@@ -382,7 +389,7 @@ class WampSession(
     ) {
         val eventChannel = subscriptions[subscriptionId]
         if (eventChannel == null) {
-            onProtocolViolated("Received EVENT that we have no pending subscription for. subscriptionId = $SubscriptionId")
+            onProtocolViolated("Received EVENT that we have no pending subscription for. SubscriptionId = $subscriptionId")
             return
         }
         eventChannel.send(SubscriptionEvent.Payload(arguments, argumentsKw))
@@ -391,7 +398,7 @@ class WampSession(
     private suspend fun onSubscribedReceived(requestId: RequestId, subscriptionId: SubscriptionId) {
         val eventChannel = pendingSubscriptions.remove(requestId)
         if (eventChannel == null) {
-            onProtocolViolated("Received SUBSCRIBED that we have no pending subscription for. requestId = $requestId subscriptionId = $subscriptionId")
+            onProtocolViolated("Received SUBSCRIBED that we have no pending subscription for. RequestId = $requestId subscriptionId = $subscriptionId")
             return
         }
         subscriptions[subscriptionId] = eventChannel
@@ -407,17 +414,17 @@ class WampSession(
     }
 
     private suspend fun evaluateJoining(trigger: Trigger) = when (trigger) {
-        is MessageReceived -> {
+        is Leave, is Shutdown -> sendAbort(WampClose.SYSTEM_SHUTDOWN)
+        is MessageReceived    -> {
             when (trigger.message) {
                 is Message.Welcome -> onWelcomeReceived()
                 is Message.Abort   -> onAbort(trigger.message.reason)
                 else               -> onProtocolViolated("Illegal message received. Expected 'Welcome' or 'Abort'.")
             }
         }
-        is Leave           -> sendAbort(WampClose.SYSTEM_SHUTDOWN)
-        is WebSocketClosed -> onWebSocketClosedPrematurely(trigger.code, trigger.reason)
-        is WebSocketFailed -> onWebSocketFailed(trigger.throwable)
-        else               -> failTransition(trigger)
+        is WebSocketClosed    -> onWebSocketClosedPrematurely(trigger.code, trigger.reason)
+        is WebSocketFailed    -> onWebSocketFailed(trigger.throwable)
+        else                  -> failTransition(trigger)
     }
 
     private fun onWelcomeReceived() {
@@ -473,7 +480,7 @@ class WampSession(
         send(message)
     }
 
-    private suspend fun onProtocolViolated(message: String = "Received illegal message") =
+    private suspend fun onProtocolViolated(message: String = "Received unexpected message.") =
         sendAbort(WampClose.PROTOCOL_VIOLATION, json {
             "message" to message
         })
