@@ -9,7 +9,7 @@ sealed class CalleeEvent {
     data class Invocation(
         val arguments: JsonArray?,
         val argumentsKw: JsonObject?,
-        val returnResult: (CallerEvent) -> Unit
+        val returnResult: suspend (CallerEvent) -> Unit
     ) : CalleeEvent()
 
     data class RegistrationFailed(val errorUri: String) : CalleeEvent()

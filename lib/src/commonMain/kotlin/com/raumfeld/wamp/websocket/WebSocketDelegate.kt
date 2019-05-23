@@ -2,7 +2,7 @@ package com.raumfeld.wamp.websocket
 
 interface WebSocketDelegate {
 
-    fun send(message: String)
+    suspend fun send(message: String)
 
-    fun close(code: Int, reason: String? = null)
+    suspend fun close(code: Int, reason: String? = null)
 }

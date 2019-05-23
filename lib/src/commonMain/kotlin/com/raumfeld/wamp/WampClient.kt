@@ -17,29 +17,29 @@ class WampClient(
 
             private var session: WampSession? = null
 
-            override fun onOpen(webSocketDelegate: WebSocketDelegate) {
+            override suspend fun onOpen(webSocketDelegate: WebSocketDelegate) {
                 session = sessionFactory(webSocketDelegate).apply {
                     callback(success(this))
                 }
             }
 
-            override fun onMessage(webSocketDelegate: WebSocketDelegate, text: String) {
+            override suspend fun onMessage(webSocketDelegate: WebSocketDelegate, text: String) {
                 session?.onMessage(text)
             }
 
-            override fun onMessage(webSocketDelegate: WebSocketDelegate, bytes: ByteArray) {
+            override suspend fun onMessage(webSocketDelegate: WebSocketDelegate, bytes: ByteArray) {
                 session?.onBinaryMessageReceived()
             }
 
-            override fun onClosing(webSocketDelegate: WebSocketDelegate, code: Int, reason: String) = Unit
+            override suspend fun onClosing(webSocketDelegate: WebSocketDelegate, code: Int, reason: String) = Unit
 
-            override fun onClosed(webSocketDelegate: WebSocketDelegate, code: Int, reason: String) {
-                session?.onClosed(code, reason)
+            override suspend fun onClosed(webSocketDelegate: WebSocketDelegate, code: Int, reason: String) {
+                session?.onWebSocketClosed(code, reason)
                 session = null
             }
 
-            override fun onFailure(webSocketDelegate: WebSocketDelegate, t: Throwable) {
-                session?.onFailed(t)
+            override suspend fun onFailure(webSocketDelegate: WebSocketDelegate, t: Throwable) {
+                session?.onWebSocketFailed(t)
                 session = null
                 callback(failure(t))
             }

@@ -9,30 +9,25 @@ import com.raumfeld.wamp.session.WampSession.State.*
 import com.raumfeld.wamp.session.WampSession.Trigger.*
 import com.raumfeld.wamp.websocket.WebSocketCloseCodes
 import com.raumfeld.wamp.websocket.WebSocketDelegate
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.channels.SendChannel
-import kotlinx.coroutines.channels.consumeEach
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.json
-import kotlin.coroutines.CoroutineContext
-
-expect val wampContextFactory: () -> CoroutineContext
 
 class WampSession(
     private val webSocketDelegate: WebSocketDelegate,
-    private val idGenerator: IdGenerator = IdGenerator(),
-    context: CoroutineContext = wampContextFactory()
+    private val idGenerator: IdGenerator = IdGenerator()
 ) {
 
     interface WampSessionListener {
         fun onRealmJoined()
-        fun onRealmLeft()
-        fun onRealmAborted()
+        fun onRealmLeft(fromRouter: Boolean)
+        fun onSessionShutdown()
+        fun onSessionAborted(reason: String, throwable: Throwable?)
     }
 
     private enum class State {
@@ -40,8 +35,9 @@ class WampSession(
         JOINING,
         JOINED,
         ABORTED,
-        CLOSING,
-        CLOSED
+        LEAVING,
+        SHUTTING_DOWN,
+        SHUT_DOWN
     }
 
     private sealed class Trigger {
@@ -69,60 +65,52 @@ class WampSession(
 
         data class Publish(val topic: String, val arguments: JsonArray?, val argumentsKw: JsonObject?) : Trigger()
         object Leave : Trigger()
+        object Shutdown : Trigger()
+        class WebSocketClosed(val code: Int, val reason: String) : Trigger()
+        class WebSocketFailed(val throwable: Throwable) : Trigger()
     }
 
-    private var eventChannel = Channel<Trigger>()
-
+    private val mutex = Mutex()
     // INTERNAL STATE MUST ONLY BE MUTATED FROM INSIDE OUR CONTEXT
     private var realm: String? = null
     private var sessionListener: WampSessionListener? = null
     private var state = INITIAL
-    private val scope = CoroutineScope(context)
     private val pendingSubscriptions = mutableMapOf<RequestId, SendChannel<SubscriptionEvent>>()
     private val subscriptions = mutableMapOf<SubscriptionId, SendChannel<SubscriptionEvent>>()
     private val pendingRegistrations = mutableMapOf<RequestId, SendChannel<CalleeEvent>>()
     private val registrations = mutableMapOf<RegistrationId, SendChannel<CalleeEvent>>()
     private val pendingCalls = mutableMapOf<RequestId, SendChannel<CallerEvent>>()
 
-    init {
-        scope.launch {
-            startEventProcessor()
-        }
-    }
-
-    private suspend fun startEventProcessor() {
-        eventChannel.consumeEach {
-            evaluate(it)
-        }
-    }
-
-    fun join(realm: String, listener: WampSessionListener? = null) {
+    suspend fun join(realm: String, listener: WampSessionListener? = null) {
         this.sessionListener = listener
         dispatch(Join(realm))
     }
 
-    fun leave() {
-        dispatch(Leave)
-    }
+    suspend fun leave(): Unit = dispatch(Leave)
 
-    fun subscribe(topic: String): ReceiveChannel<SubscriptionEvent> =
+    suspend fun shutdown(): Unit = dispatch(Shutdown)
+
+    suspend fun subscribe(topic: String): ReceiveChannel<SubscriptionEvent> =
         Channel<SubscriptionEvent>().also {
             dispatch(Subscribe(topic, it))
         }
 
-    fun unsubscribe(subscriptionId: SubscriptionId) = dispatch(Unsubscribe(subscriptionId))
+    suspend fun unsubscribe(subscriptionId: SubscriptionId) = dispatch(Unsubscribe(subscriptionId))
 
-    fun publish(topic: String, arguments: JsonArray = emptyJsonArray(), argumentsKw: JsonObject = emptyJsonObject()) =
-        dispatch(Publish(topic, arguments, argumentsKw))
+    suspend fun publish(
+        topic: String,
+        arguments: JsonArray = emptyJsonArray(),
+        argumentsKw: JsonObject = emptyJsonObject()
+    ): Unit = dispatch(Publish(topic, arguments, argumentsKw))
 
-    fun register(procedureId: ProcedureId): ReceiveChannel<CalleeEvent> =
+    suspend fun register(procedureId: ProcedureId): ReceiveChannel<CalleeEvent> =
         Channel<CalleeEvent>().also {
             dispatch(Register(procedureId, it))
         }
 
-    fun unregister(registrationId: RegistrationId) = dispatch(Unregister(registrationId))
+    suspend fun unregister(registrationId: RegistrationId): Unit = dispatch(Unregister(registrationId))
 
-    fun call(
+    suspend fun call(
         procedureId: ProcedureId,
         arguments: JsonArray = emptyJsonArray(),
         argumentsKw: JsonObject = emptyJsonObject()
@@ -132,23 +120,27 @@ class WampSession(
         }
 
     private suspend fun evaluate(trigger: Trigger) {
-        if (!ensureNonBinaryMessage(trigger)) {
-            return
-        }
+        try {
+            if (!ensureNonBinaryMessage(trigger)) {
+                return
+            }
 
-        when (state) {
-            INITIAL -> evaluateInitial(trigger)
-            JOINING -> evaluateJoining(trigger)
-            JOINED  -> evaluateJoined(trigger)
-            ABORTED -> evaluatedAborted(trigger)
-            CLOSING -> evaluateClosing(trigger)
-            CLOSED  -> evaluateClosed(trigger)
-        }
+            when (state) {
+                SHUTTING_DOWN -> evaluateLeavingOrShuttingDown(trigger, mustShutdown = true)
+                INITIAL       -> evaluateInitial(trigger)
+                JOINING       -> evaluateJoining(trigger)
+                JOINED        -> evaluateJoined(trigger)
+                ABORTED       -> evaluatedAborted(trigger)
+                LEAVING       -> evaluateLeavingOrShuttingDown(trigger, mustShutdown = false)
+                SHUT_DOWN     -> evaluateShutdown(trigger)
+            }
 
-        releaseId(trigger)
+        } finally {
+            releaseId(trigger)
+        }
     }
 
-    private fun ensureNonBinaryMessage(trigger: Trigger) = if (trigger is BinaryMessageReceived) {
+    private suspend fun ensureNonBinaryMessage(trigger: Trigger) = if (trigger is BinaryMessageReceived) {
         onProtocolViolated("Received binary message. This is not supported by this client.")
         false
     } else true
@@ -160,27 +152,32 @@ class WampSession(
         }
     }
 
-    private fun evaluateClosed(trigger: Trigger) =
-        if (trigger is MessageReceived)
-            onProtocolViolated("Session is closed. We cannot process messages.")
-        else
-            failTransition(trigger)
+    private suspend fun evaluateShutdown(trigger: Trigger) =
+        when (trigger) {
+            is MessageReceived -> onProtocolViolated("Session is shut down. We cannot process messages.")
+            is WebSocketClosed -> Unit // we caused this ourselves
+            is WebSocketFailed -> onWebSocketFailed(trigger.throwable)
+            else               -> failTransition(trigger)
+        }
 
-    private fun evaluateClosing(trigger: Trigger) = when (trigger) {
+    private suspend fun evaluateLeavingOrShuttingDown(trigger: Trigger, mustShutdown: Boolean) = when (trigger) {
         is MessageReceived -> {
             when (trigger.message) {
-                is Message.Goodbye -> onGoodbyeReceived()
-                else               -> onProtocolViolated("Received unexpected message. Expected 'Goodbye'.")
+                is Message.Goodbye -> onGoodbyeAcknowledgedReceived(mustShutdown)
+                else               -> Unit // according to the spec we are to ignore other messages
             }
         }
+        is WebSocketClosed -> onWebSocketClosedPrematurely(trigger.code, trigger.reason)
+        is WebSocketFailed -> doOnWebSocketFailed(trigger.throwable)
         else               -> failTransition(trigger)
     }
 
-    private fun evaluatedAborted(trigger: Trigger) =
-        if (trigger is MessageReceived)
-            onProtocolViolated("Session is aborted. We cannot process messages.")
-        else
-            failTransition(trigger)
+    private suspend fun evaluatedAborted(trigger: Trigger) =
+        when (trigger) {
+            is WebSocketClosed, is WebSocketFailed -> Unit // we don't even care anymore!
+            is MessageReceived                     -> onProtocolViolated("Session is aborted. We cannot process messages.")
+            else                                   -> failTransition(trigger)
+        }
 
     private suspend fun evaluateJoined(trigger: Trigger) {
         when (trigger) {
@@ -212,6 +209,7 @@ class WampSession(
                         message.requestId,
                         message.wampErrorUri
                     )
+                    is Message.Goodbye      -> onGoodbyeReceived(mustShutdown = message.reason == WampClose.SYSTEM_SHUTDOWN.content)
                     else                    -> onProtocolViolated("Received unexpected message.")
                 }
             }
@@ -227,29 +225,32 @@ class WampSession(
                 trigger.eventChannel
             )
             is Yield           -> doYield(trigger.requestId, trigger.arguments, trigger.argumentsKw)
-            is Leave           -> sendGoodbye()
+            is Leave           -> sendGoodbye(mustShutdown = false)
+            is Shutdown        -> sendGoodbye(mustShutdown = true)
             is Error           -> sendError(trigger.errorType, trigger.requestId, trigger.wampErrorUri)
+            is WebSocketClosed -> onWebSocketClosedPrematurely(trigger.code, trigger.reason)
+            is WebSocketFailed -> onWebSocketFailed(trigger.throwable)
             else               -> failTransition(trigger)
         }
     }
 
-    private fun doYield(requestId: RequestId, arguments: JsonArray?, argumentsKw: JsonObject?) =
+    private suspend fun doYield(requestId: RequestId, arguments: JsonArray?, argumentsKw: JsonObject?) =
         send(Message.Yield(requestId, arguments, argumentsKw))
 
-    private fun doUnregister(registrationId: RegistrationId) {
+    private suspend fun doUnregister(registrationId: RegistrationId) {
         val channel = registrations[registrationId]
         if (channel != null) {
             send(Message.Unregister(idGenerator.newId(), registrationId))
         }
     }
 
-    private fun doRegister(procedureId: ProcedureId, eventChannel: SendChannel<CalleeEvent>) {
+    private suspend fun doRegister(procedureId: ProcedureId, eventChannel: SendChannel<CalleeEvent>) {
         val requestId = idGenerator.newId()
         pendingRegistrations[requestId] = eventChannel
         send(Message.Register(requestId, procedureId))
     }
 
-    private fun doCall(
+    private suspend fun doCall(
         procedureId: ProcedureId,
         arguments: JsonArray?,
         argumentsKw: JsonObject?,
@@ -260,7 +261,7 @@ class WampSession(
         send(Message.Call(requestId, procedureId, arguments, argumentsKw))
     }
 
-    private fun sendError(errorType: MessageType, requestId: RequestId, wampErrorUri: String) =
+    private suspend fun sendError(errorType: MessageType, requestId: RequestId, wampErrorUri: String) =
         send(Message.Error(requestId, errorType, wampErrorUri))
 
     private suspend fun onResultReceived(requestId: RequestId, arguments: JsonArray?, argumentsKw: JsonObject?) {
@@ -286,7 +287,7 @@ class WampSession(
         eventChannel.send(CalleeEvent.Invocation(arguments, argumentsKw) { yieldResult(requestId, it) })
     }
 
-    private fun yieldResult(requestId: RequestId, result: CallerEvent) =
+    private suspend fun yieldResult(requestId: RequestId, result: CallerEvent) =
         dispatch(
             when (result) {
                 is CallerEvent.CallFailed -> Error(Message.Invocation.type, requestId, result.errorUri)
@@ -304,7 +305,7 @@ class WampSession(
         eventChannel.send(CalleeEvent.ProcedureRegistered(registrationId))
     }
 
-    private fun doPublish(topic: String, arguments: JsonArray?, argumentsKw: JsonObject?) =
+    private suspend fun doPublish(topic: String, arguments: JsonArray?, argumentsKw: JsonObject?) =
         send(Message.Publish(idGenerator.newId(), topic, arguments, argumentsKw))
 
     private suspend fun doUnsubscribe(subscriptionId: SubscriptionId) {
@@ -316,13 +317,13 @@ class WampSession(
         }
     }
 
-    private fun setupSubscription(topic: String, eventChannel: SendChannel<SubscriptionEvent>) {
+    private suspend fun setupSubscription(topic: String, eventChannel: SendChannel<SubscriptionEvent>) {
         val requestId = idGenerator.newId()
         pendingSubscriptions[requestId] = eventChannel
         sendSubscribe(requestId, topic)
     }
 
-    private fun sendSubscribe(requestId: RequestId, topic: String) {
+    private suspend fun sendSubscribe(requestId: RequestId, topic: String) {
         val message = Message.Subscribe(requestId, topic)
         send(message)
     }
@@ -405,15 +406,17 @@ class WampSession(
         // We don't do anything special here. We've cleaned up everything when we sent the original UNREGISTER.
     }
 
-    private fun evaluateJoining(trigger: Trigger) = when (trigger) {
+    private suspend fun evaluateJoining(trigger: Trigger) = when (trigger) {
         is MessageReceived -> {
             when (trigger.message) {
                 is Message.Welcome -> onWelcomeReceived()
-                is Message.Abort   -> onAbortReceived()
+                is Message.Abort   -> onAbort(trigger.message.reason)
                 else               -> onProtocolViolated("Illegal message received. Expected 'Welcome' or 'Abort'.")
             }
         }
         is Leave           -> sendAbort(WampClose.SYSTEM_SHUTDOWN)
+        is WebSocketClosed -> onWebSocketClosedPrematurely(trigger.code, trigger.reason)
+        is WebSocketFailed -> onWebSocketFailed(trigger.throwable)
         else               -> failTransition(trigger)
     }
 
@@ -422,49 +425,70 @@ class WampSession(
         sessionListener?.onRealmJoined()
     }
 
-    private fun onGoodbyeReceived() {
-        state = CLOSED
-        sessionListener?.onRealmLeft()
-        closeWebSocket()
+    private suspend fun onGoodbyeAcknowledgedReceived(mustShutdown: Boolean) {
+        state = if (!mustShutdown) INITIAL else SHUT_DOWN
+        sessionListener?.onRealmLeft(fromRouter = false)
+        if (mustShutdown) {
+            sessionListener?.onSessionShutdown()
+            closeWebSocket()
+        }
     }
 
-    private fun onAbortReceived() {
+    private suspend fun onGoodbyeReceived(mustShutdown: Boolean) {
+        state = if (!mustShutdown) INITIAL else SHUT_DOWN
+        val message = Message.Goodbye(reason = WampClose.GOODBYE_AND_OUT.content)
+        send(message)
+        sessionListener?.onRealmLeft(fromRouter = true)
+        if (mustShutdown) {
+            sessionListener?.onSessionShutdown()
+            closeWebSocket()
+        }
+    }
+
+    private suspend fun onAbort(reason: String, throwable: Throwable? = null) {
         state = ABORTED
-        sessionListener?.onRealmAborted()
-        webSocketDelegate.close(WebSocketCloseCodes.GOING_AWAY, "Received ABORT")
+        sessionListener?.onSessionAborted(reason, throwable)
+        webSocketDelegate.close(WebSocketCloseCodes.GOING_AWAY, "ABORT")
     }
 
-    private fun evaluateInitial(trigger: Trigger) = when (trigger) {
+    private suspend fun evaluateInitial(trigger: Trigger) = when (trigger) {
         is MessageReceived -> onProtocolViolated("Not ready to receive messages yet. Session has not been established.")
         is Join            -> sendHello(trigger.realm)
+        is WebSocketClosed -> onWebSocketClosedPrematurely(trigger.code, trigger.reason)
+        is WebSocketFailed -> onWebSocketFailed(trigger.throwable)
         else               -> failTransition(trigger)
     }
 
-    private fun failTransition(trigger: Trigger): Nothing =
-        error("Invalid state trigger $trigger for state $state")
+    private suspend fun doOnWebSocketFailed(throwable: Throwable) = onAbort("WebSocket failed", throwable)
 
-    private fun sendGoodbye() {
-        state = CLOSING
-        val message = Message.Goodbye(reason = WampClose.SYSTEM_SHUTDOWN.content)
+    private suspend fun onWebSocketClosedPrematurely(code: Int, reason: String) =
+        onAbort("WebSocket closed prematurely ($code - $reason)")
+
+    private suspend fun failTransition(trigger: Trigger) = onAbort("Invalid state trigger $trigger for state $state")
+
+    private suspend fun sendGoodbye(mustShutdown: Boolean) {
+        state = if (!mustShutdown) LEAVING else SHUTTING_DOWN
+        val message =
+            Message.Goodbye(reason = if (mustShutdown) WampClose.SYSTEM_SHUTDOWN.content else WampClose.CLOSE_REALM.content)
         send(message)
     }
 
-    private fun onProtocolViolated(message: String = "Received illegal message") =
+    private suspend fun onProtocolViolated(message: String = "Received illegal message") =
         sendAbort(WampClose.PROTOCOL_VIOLATION, json {
             "message" to message
         })
 
-    private fun sendAbort(reason: WampClose, details: JsonObject = emptyJsonObject()) {
+    private suspend fun sendAbort(reason: WampClose, details: JsonObject = emptyJsonObject()) {
         state = ABORTED
-        sessionListener?.onRealmAborted()
+        sessionListener?.onSessionAborted(reason.content, null)
         val message = Message.Abort(reason = reason.content, details = details)
         send(message)
         webSocketDelegate.close(reason.webSocketCloseCode, "Session aborted")
     }
 
-    private fun closeWebSocket() = webSocketDelegate.close(WebSocketCloseCodes.GOING_AWAY, "Session closed")
+    private suspend fun closeWebSocket() = webSocketDelegate.close(WebSocketCloseCodes.GOING_AWAY, "Session closed")
 
-    private fun sendHello(realm: String) {
+    private suspend fun sendHello(realm: String) {
         state = JOINING
         this.realm = realm
         val message = Message.Hello(
@@ -480,30 +504,28 @@ class WampSession(
         send(message)
     }
 
-    private fun send(message: Message) {
+    private suspend fun send(message: Message) {
         webSocketDelegate.send(message.toJson())
     }
 
-    private fun dispatch(trigger: Trigger) {
-        scope.launch {
-            eventChannel.send(trigger)
-        }
+    private suspend fun dispatch(trigger: Trigger) = mutex.withLock {
+        evaluate(trigger)
     }
 
-    internal fun onMessage(messageJson: String) {
+    internal suspend fun onMessage(messageJson: String) {
         val message = fromJsonToMessage(messageJson)
         dispatch(MessageReceived(message))
     }
 
-    internal fun onBinaryMessageReceived() {
+    internal suspend fun onBinaryMessageReceived() {
         dispatch(BinaryMessageReceived)
     }
 
-    internal fun onClosed(code: Int, reason: String) {
-        scope.cancel()
+    internal suspend fun onWebSocketClosed(code: Int, reason: String) {
+        dispatch(WebSocketClosed(code, reason))
     }
 
-    internal fun onFailed(t: Throwable) {
-        scope.cancel()
+    internal suspend fun onWebSocketFailed(throwable: Throwable) {
+        dispatch(WebSocketFailed(throwable))
     }
 }

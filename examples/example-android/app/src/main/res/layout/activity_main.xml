@@ -4,6 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_margin="20dp">
+
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -53,19 +54,34 @@
                 android:layout_weight="1" />
         </LinearLayout>
 
-        <Button
-            android:id="@+id/join"
+        <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:layout_margin="10dp"
-            android:text="Join" />
+            android:layout_height="wrap_content">
 
-        <Button
-            android:id="@+id/leave"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:layout_margin="10dp"
-            android:text="Leave" />
+            <Button
+                android:id="@+id/join"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_margin="10dp"
+                android:layout_weight="1"
+                android:text="Join" />
+
+            <Button
+                android:id="@+id/leave"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_margin="10dp"
+                android:layout_weight="1"
+                android:text="Leave" />
+
+            <Button
+                android:id="@+id/shutdown"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_margin="10dp"
+                android:layout_weight="1"
+                android:text="Shutdown" />
+        </LinearLayout>
 
         <TextView
             android:layout_width="match_parent"
@@ -238,19 +254,21 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content">
+
             <Button
                 android:id="@+id/register"
                 android:layout_width="0dp"
-                android:layout_weight="1"
                 android:layout_height="match_parent"
                 android:layout_margin="10dp"
+                android:layout_weight="1"
                 android:text="Register" />
+
             <Button
                 android:id="@+id/unregister"
                 android:layout_width="0dp"
-                android:layout_weight="1"
                 android:layout_height="match_parent"
                 android:layout_margin="10dp"
+                android:layout_weight="1"
                 android:text="Unregister" />
         </LinearLayout>
 

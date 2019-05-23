@@ -52,22 +52,22 @@ class WampClientTests {
     }
 
     @Test
-    fun shouldDelegateCloseAndForgetSession() {
+    fun shouldDelegateCloseAndForgetSession() = runTest {
         createSession()
         val (code, reason) = 1001 to "No reason!"
         capturedWebSocketCallback.onClosed(mockWebSocketDelegate, code, reason)
-        verify { mockSession.onClosed(code, reason) }
+        coVerify { mockSession.onWebSocketClosed(code, reason) }
         clearMocks(mockSession)
         capturedWebSocketCallback.onMessage(mockWebSocketDelegate, "I hope this gets ignored.")
         verify { mockSession wasNot Called }
     }
 
     @Test
-    fun shouldDelegateFailureAndForgetSession() {
+    fun shouldDelegateFailureAndForgetSession() = runTest {
         createSession()
         val throwable = RuntimeException("Oopsie.")
         capturedWebSocketCallback.onFailure(mockWebSocketDelegate, throwable)
-        verify { mockSession.onFailed(throwable) }
+        coVerify { mockSession.onWebSocketFailed(throwable) }
         verify { mockResultCallback.invoke(failure(throwable)) }
         clearMocks(mockSession)
         capturedWebSocketCallback.onMessage(mockWebSocketDelegate, "I hope this gets ignored.")
@@ -75,7 +75,7 @@ class WampClientTests {
     }
 
     @Test
-    fun shouldNotCreateSessionUponFailure() {
+    fun shouldNotCreateSessionUponFailure() = runTest {
         createSession(callOnOpen = false)
         val throwable = RuntimeException("Could not create websocket")
         capturedWebSocketCallback.onFailure(mockWebSocketDelegate, throwable)
@@ -84,19 +84,19 @@ class WampClientTests {
     }
 
     @Test
-    fun shouldDelegateMessage() {
+    fun shouldDelegateMessage() = runTest {
         createSession()
         val message = "I am a message"
         val binaryMessage = ByteArray(0)
         capturedWebSocketCallback.onMessage(mockWebSocketDelegate, message)
         capturedWebSocketCallback.onMessage(mockWebSocketDelegate, binaryMessage)
-        verifySequence {
+        coVerifySequence {
             mockSession.onMessage(message)
             mockSession.onBinaryMessageReceived()
         }
     }
 
-    private fun createSession(callOnOpen: Boolean = true) {
+    private fun createSession(callOnOpen: Boolean = true) = runTest {
         client.createSession(WS_URI, mockResultCallback)
         if (callOnOpen)
             capturedWebSocketCallback.onOpen(mockWebSocketDelegate)

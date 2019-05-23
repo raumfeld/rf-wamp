@@ -16,15 +16,16 @@ import com.raumfeld.wamp.websocket.WebSocketCallback
 import com.raumfeld.wamp.websocket.WebSocketDelegate
 import com.raumfeld.wamp.websocket.WebSocketFactory
 import kotlinx.android.synthetic.main.activity_main.*
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Dispatchers.Main
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.channels.consumeEach
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.jsonArray
 import okhttp3.*
 import okio.ByteString
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : AppCompatActivity(), WampSession.WampSessionListener {
     companion object {
         const val TAG = "WampDemo"
     }
@@ -35,7 +36,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun toast(message: String) {
         Log.i(TAG, message)
-        GlobalScope.launch(Dispatchers.Main) {
+        GlobalScope.launch(Main) {
             Toast.makeText(this@MainActivity, message, Toast.LENGTH_SHORT).show()
         }
     }
@@ -51,20 +52,22 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupButtons() {
         call.setOnClickListener {
-            val channel =
-                session?.call(callProcedureUri.text.toString(), jsonArray { +callProcedureArgument.text.toString() })
-                    ?: return@setOnClickListener
-            GlobalScope.launch(Dispatchers.Main) {
+            GlobalScope.launch(Main) {
+                val channel =
+                    session?.call(
+                        callProcedureUri.text.toString(),
+                        jsonArray { +callProcedureArgument.text.toString() })
+                        ?: return@launch
                 channel.consumeEach {
                     when (it) {
-                        is CallerEvent.Result     -> toast("Call returned: ${it.arguments}\n${it.argumentsKw}")
+                        is CallerEvent.Result -> toast("Call returned: ${it.arguments}\n${it.argumentsKw}")
                         is CallerEvent.CallFailed -> toast("Call failed: ${it.errorUri}")
                     }
                 }
             }
         }
         unregister.setOnClickListener {
-            GlobalScope.launch(Dispatchers.Main) {
+            GlobalScope.launch(Main) {
                 registrationId?.let {
                     session?.unregister(it)
                 }
@@ -72,9 +75,9 @@ class MainActivity : AppCompatActivity() {
             }
         }
         register.setOnClickListener {
-            val channel = session?.register(registerProcedureUri.text.toString()) ?: return@setOnClickListener
             val result = jsonArray { +registerProcedureReturn.text.toString() }
-            GlobalScope.launch(Dispatchers.Main) {
+            GlobalScope.launch(Main) {
+                val channel = session?.register(registerProcedureUri.text.toString()) ?: return@launch
                 channel.consumeEach {
                     when (it) {
                         is CalleeEvent.ProcedureRegistered -> {
@@ -94,8 +97,9 @@ class MainActivity : AppCompatActivity() {
             }
         }
         subscribe.setOnClickListener {
-            val channel = session?.subscribe(subscribeTopic.text.toString()) ?: return@setOnClickListener
-            GlobalScope.launch(Dispatchers.Main) {
+
+            GlobalScope.launch(Main) {
+                val channel = session?.subscribe(subscribeTopic.text.toString()) ?: return@launch
                 channel.consumeEach {
                     when (it) {
                         is SubscriptionEstablished -> {
@@ -115,42 +119,50 @@ class MainActivity : AppCompatActivity() {
         }
         unsubscribe.setOnClickListener {
             subscriptionId?.let {
-                session?.unsubscribe(it)
+                GlobalScope.launch {
+                    session?.unsubscribe(it)
+                }
             }
         }
         publish.setOnClickListener {
-            session?.publish(publishTopic.text.toString(), jsonArray { +publishValue.text.toString() })
+            GlobalScope.launch(Main) {
+                session?.publish(publishTopic.text.toString(), jsonArray { +publishValue.text.toString() })
+            }
         }
         leave.setOnClickListener {
-            session?.leave()
+            GlobalScope.launch(Main) {
+                session?.leave()
+            }
+        }
+        shutdown.setOnClickListener {
+            GlobalScope.launch(Main) {
+                session?.shutdown()
+            }
         }
         join.setOnClickListener {
             val realmString = realm.text.toString()
-            WampClient(OkHttpWebSocketFactory()).createSession(uri = wsUrl.text.toString()) { result ->
-                result.onSuccess {
-                    Log.i(TAG, "WAMP session created successfully, joining realm ...")
-                    session = it
-                    it.join(realmString, object : WampSession.WampSessionListener {
-                        override fun onRealmAborted() {
+            if (session == null) {
+                WampClient(OkHttpWebSocketFactory()).createSession(uri = wsUrl.text.toString()) { result ->
+                    GlobalScope.launch(Main) {
+                        result.onSuccess {
+                            Log.i(TAG, "WAMP session created successfully, joining realm ...")
+                            session = it
+                            it.join(realmString, this@MainActivity)
+                        }
+                        result.onFailure {
+                            Log.e(TAG, "WebSocket failure", it)
                             session = null
-                            toast("Realm was aborted")
+                            toast("Could not create session")
                         }
-
-                        override fun onRealmJoined() {
-                            toast("Realm was joined")
-                        }
-
-                        override fun onRealmLeft() {
-                            session = null
-                            toast("Realm was left")
-                        }
-                    })
+                    }
                 }
-                result.onFailure {
-                    Log.e(TAG, "WebSocket failure", it)
-                    toast("Could not create session")
+            } else {
+                GlobalScope.launch(Main) {
+                    Log.i(TAG, "Re-using WAMP session, joining realm ...")
+                    session?.join(realmString, this@MainActivity)
                 }
             }
+
         }
     }
 
@@ -176,12 +188,29 @@ class MainActivity : AppCompatActivity() {
         registerProcedureReturn.doAfterTextChanged { AppPreferences.registerReturn = it.toString() }
     }
 
+    override fun onSessionAborted(reason: String, throwable: Throwable?) {
+        session = null
+        toast("Session was aborted: $reason (${throwable?.message})")
+    }
+
+    override fun onSessionShutdown() {
+        toast("Session was shutdown)")
+    }
+
+    override fun onRealmJoined() {
+        toast("Realm was joined")
+    }
+
+    override fun onRealmLeft(fromRouter: Boolean) {
+        toast("Realm was left (fromRouter: $fromRouter)")
+    }
+
     class OkHttpWebSocketDelegate(val webSocket: WebSocket) : WebSocketDelegate {
-        override fun close(code: Int, reason: String?) {
+        override suspend fun close(code: Int, reason: String?) {
             webSocket.close(code, reason)
         }
 
-        override fun send(message: String) {
+        override suspend fun send(message: String) {
             webSocket.send(message)
         }
     }
@@ -194,22 +223,22 @@ class MainActivity : AppCompatActivity() {
                 Request.Builder().url(uri).header("Sec-WebSocket-Protocol", "wamp.2.json").build()
             OkHttpClient().newWebSocket(request, object : WebSocketListener() {
                 override fun onOpen(webSocket: WebSocket, response: Response) =
-                    callback.onOpen(webSocket.delegate)
+                    runBlocking { callback.onOpen(webSocket.delegate) }
 
                 override fun onMessage(webSocket: WebSocket, text: String) =
-                    callback.onMessage(webSocket.delegate, text)
+                    runBlocking { callback.onMessage(webSocket.delegate, text) }
 
                 override fun onMessage(webSocket: WebSocket, bytes: ByteString) =
-                    callback.onMessage(webSocket.delegate, bytes.toByteArray())
+                    runBlocking { callback.onMessage(webSocket.delegate, bytes.toByteArray()) }
 
                 override fun onClosing(webSocket: WebSocket, code: Int, reason: String) =
-                    callback.onClosing(webSocket.delegate, code, reason)
+                    runBlocking { callback.onClosing(webSocket.delegate, code, reason) }
 
                 override fun onClosed(webSocket: WebSocket, code: Int, reason: String) =
-                    callback.onClosed(webSocket.delegate, code, reason)
+                    runBlocking { callback.onClosed(webSocket.delegate, code, reason) }
 
                 override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) =
-                    callback.onFailure(webSocket.delegate, t)
+                    runBlocking { callback.onFailure(webSocket.delegate, t) }
             })
         }
 

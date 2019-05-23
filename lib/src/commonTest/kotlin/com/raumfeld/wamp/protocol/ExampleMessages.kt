@@ -31,16 +31,44 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
     /**
      * [ABORT, Details|dict, Reason|uri]
      */
-    ABORT(
+    ABORT_REALM_DOES_NOT_EXIST(
         """[3,{"message":"The realm does not exist."},"wamp.error.no_such_realm"]""",
         Message.Abort(json { "message" to "The realm does not exist." }, "wamp.error.no_such_realm")
     ),
     /**
+     * [ABORT, Details|dict, Reason|uri]
+     */
+    ABORT_SHUTDOWN(
+        """[3,{},"wamp.close.system_shutdown"]""",
+        Message.Abort(reason = "wamp.close.system_shutdown")
+    ),
+    /**
      * [GOODBYE, Details|dict, Reason|uri]
      */
-    GOODBYE(
+    GOODBYE_SHUTDOWN_WITH_MESSAGE(
         """[6,{"message":"The host is shutting down now."},"wamp.close.system_shutdown"]""",
         Message.Goodbye(json { "message" to "The host is shutting down now." }, "wamp.close.system_shutdown")
+    ),
+    /**
+     * [GOODBYE, Details|dict, Reason|uri]
+     */
+    GOODBYE_SHUTDOWN(
+        """[6,{},"wamp.close.system_shutdown"]""",
+        Message.Goodbye(reason = "wamp.close.system_shutdown")
+    ),
+    /**
+     * [GOODBYE, Details|dict, Reason|uri]
+     */
+    GOODBYE_CLOSE_REALM(
+        """[6,{},"wamp.close.close_realm"]""",
+        Message.Goodbye(reason = "wamp.close.close_realm")
+    ),
+    /**
+     * [GOODBYE, Details|dict, Reason|uri]
+     */
+    GOODBYE_AND_OUT(
+        """[6,{},"wamp.close.goodbye_and_out"]""",
+        Message.Goodbye(reason = "wamp.close.goodbye_and_out")
     ),
     /**
      * [SUBSCRIBE, Request|id, Options|dict, Topic|uri]
