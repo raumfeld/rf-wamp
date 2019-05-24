@@ -11,8 +11,9 @@ sealed class CalleeEvent {
         val argumentsKw: JsonObject?,
         val returnResult: suspend (CallerEvent) -> Unit
     ) : CalleeEvent()
-
+    object ProcedureUnregistered : CalleeEvent()
     data class RegistrationFailed(val errorUri: String) : CalleeEvent()
+    data class UnregistrationFailed(val errorUri: String) : CalleeEvent()
 }
 
 sealed class CallerEvent {

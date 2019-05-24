@@ -7,6 +7,7 @@ import kotlinx.serialization.json.JsonObject
 sealed class SubscriptionEvent {
     data class SubscriptionEstablished(val subscriptionId: SubscriptionId) : SubscriptionEvent()
     data class Payload(val arguments: JsonArray?, val argumentsKw: JsonObject?) : SubscriptionEvent()
-    object ClientUnsubscribed : SubscriptionEvent()
+    object SubscriptionClosed : SubscriptionEvent()
     class SubscriptionFailed(val errorUri: String) : SubscriptionEvent()
+    class UnsubscriptionFailed(val errorUri: String) : SubscriptionEvent()
 }

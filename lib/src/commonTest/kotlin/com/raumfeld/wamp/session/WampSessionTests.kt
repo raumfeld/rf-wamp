@@ -3,13 +3,10 @@ package com.raumfeld.wamp.session
 import com.raumfeld.wamp.protocol.ExampleMessage
 import com.raumfeld.wamp.protocol.ExampleMessage.*
 import com.raumfeld.wamp.protocol.Message
-import com.raumfeld.wamp.protocol.WampClose
 import com.raumfeld.wamp.runTest
 import io.mockk.Called
 import io.mockk.clearMocks
-import io.mockk.coVerify
 import io.mockk.verify
-import kotlinx.serialization.json.json
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 
@@ -118,12 +115,11 @@ internal class WampSessionTests : BaseSessionTests() {
             GOODBYE_SHUTDOWN_WITH_MESSAGE,
             GOODBYE_CLOSE_REALM,
             // these are just ignored
-            UNSUBSCRIBED,
-            UNREGISTERED,
-            UNSUBSCRIBE_ERROR,
-            UNREGISTER_ERROR,
             PUBLISHED,
             PUBLISH_ERROR,
+            SUBSCRIBED2,
+            UNSUBSCRIBED2,
+            EVENT_NO_ARG2,
             // for these we sent unique protocol violations
             SUBSCRIBED,
             SUBSCRIBE_ERROR,
@@ -151,18 +147,26 @@ internal class WampSessionTests : BaseSessionTests() {
 
         receivedToSentMessages[SUBSCRIBED] =
             protocolViolationMessage("Received SUBSCRIBED that we have no pending subscription for. RequestId = ${(SUBSCRIBED.message as Message.Subscribed).requestId} subscriptionId = ${SUBSCRIBED.message.subscriptionId}")
+        receivedToSentMessages[UNSUBSCRIBED] =
+            protocolViolationMessage("Received UNSUBSCRIBED that we have no pending unsubscription for. RequestId = ${(UNSUBSCRIBED.message as Message.Unsubscribed).requestId}")
         receivedToSentMessages[REGISTERED] =
             protocolViolationMessage("Received REGISTERED that we have no pending registration for. RequestId = ${(REGISTERED.message as Message.Registered).requestId}")
+        receivedToSentMessages[UNREGISTERED] =
+            protocolViolationMessage("Received UNREGISTERED that we have no pending unregistration for. RequestId = ${(UNREGISTERED.message as Message.Unregistered).requestId}")
         receivedToSentMessages[INVOCATION_FULL_ARGS] =
-            protocolViolationMessage("Received INVOCATION that we have no pending call for. RequestId = ${(INVOCATION_FULL_ARGS.message as Message.Invocation).requestId}")
+            protocolViolationMessage("Received INVOCATION that we have no registration or pending unregistration for. RequestId = ${(INVOCATION_FULL_ARGS.message as Message.Invocation).requestId} RegistrationId = ${INVOCATION_FULL_ARGS.message.registrationId}")
         receivedToSentMessages[RESULT_FULL_ARGS] =
             protocolViolationMessage("Received RESULT that we have no pending call for. RequestId = ${(RESULT_FULL_ARGS.message as Message.Result).requestId}")
         receivedToSentMessages[EVENT_FULL_ARGS] =
-            protocolViolationMessage("Received EVENT that we have no pending subscription for. SubscriptionId = ${(EVENT_FULL_ARGS.message as Message.Event).subscriptionId}")
+            protocolViolationMessage("Received EVENT that we have no subscription or pending unsubscription for. SubscriptionId = ${(EVENT_FULL_ARGS.message as Message.Event).subscriptionId}")
         receivedToSentMessages[SUBSCRIBE_ERROR] =
             protocolViolationMessage("Received SUBSCRIBE ERROR that we have no pending subscription for. RequestId = ${(SUBSCRIBE_ERROR.message as Message.Error).requestId} ERROR uri = ${SUBSCRIBE_ERROR.message.wampErrorUri}")
+        receivedToSentMessages[UNSUBSCRIBE_ERROR] =
+            protocolViolationMessage("Received UNSUBSCRIBE ERROR that we have no pending unsubscription for. RequestId = ${(UNSUBSCRIBE_ERROR.message as Message.Error).requestId} ERROR uri = ${UNSUBSCRIBE_ERROR.message.wampErrorUri}")
         receivedToSentMessages[REGISTER_ERROR] =
             protocolViolationMessage("Received REGISTER ERROR that we have no pending registration for. RequestId = ${(REGISTER_ERROR.message as Message.Error).requestId} ERROR uri = ${REGISTER_ERROR.message.wampErrorUri}")
+        receivedToSentMessages[UNREGISTER_ERROR] =
+            protocolViolationMessage("Received UNREGISTER ERROR that we have no pending unregistration for. RequestId = ${(UNREGISTER_ERROR.message as Message.Error).requestId} ERROR uri = ${UNREGISTER_ERROR.message.wampErrorUri}")
         receivedToSentMessages[INVOCATION_ERROR_FULL_ARGS] =
             protocolViolationMessage("Received invalid REQUEST. Type: ${(INVOCATION_ERROR_FULL_ARGS.message as Message.Error).originalType}")
         receivedToSentMessages[CALL_ERROR_FULL_ARGS] =
@@ -292,26 +296,4 @@ internal class WampSessionTests : BaseSessionTests() {
         verifySessionShutdown()
         verifyWebSocketWasClosed()
     }
-
-    private suspend fun leaveRealm() = session.leave()
-
-    private suspend fun shutdownSession() = session.shutdown()
-
-    private suspend fun joinRealm() = session.join("somerealm", sessionListener)
-
-
-    private fun verifySessionAborted(reason: String) =
-        verify(exactly = 1) { sessionListener.onSessionAborted(reason, any()) }
-
-    private fun verifySessionAborted() = verify(exactly = 1) { sessionListener.onSessionAborted(any(), any()) }
-    private fun verifyRealmJoined() = verify(exactly = 1) { sessionListener.onRealmJoined() }
-    private fun verifyRealmLeft(fromRouter: Boolean) = verify(exactly = 1) { sessionListener.onRealmLeft(fromRouter) }
-    private fun verifyRealmNotLeft() = verify(exactly = 0) { sessionListener.onRealmLeft(any()) }
-    private fun verifySessionShutdown() = verify(exactly = 1) { sessionListener.onSessionShutdown() }
-    private fun verifySessionNotShutdown() = verify(exactly = 0) { sessionListener.onSessionShutdown() }
-    private fun verifyNoMessageSent() = coVerify(exactly = 0) { mockWebSocketDelegate.send(any()) }
-    private fun verifyWebSocketWasClosed() = coVerify(exactly = 1) { mockWebSocketDelegate.close(any(), any()) }
-    private fun verifyWebSocketWasNotClosed() = coVerify(exactly = 0) { mockWebSocketDelegate.close(any(), any()) }
-    private fun protocolViolationMessage(message: String) =
-        Message.Abort(details = json { "message" to message }, reason = WampClose.PROTOCOL_VIOLATION.content)
 }

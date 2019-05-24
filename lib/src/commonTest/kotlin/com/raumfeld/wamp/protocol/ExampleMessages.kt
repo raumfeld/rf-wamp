@@ -105,11 +105,25 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
         Message.Subscribe(713845233, "com.myapp.mytopic1")
     ),
     /**
+     * [SUBSCRIBE, Request|id, Options|dict, Topic|uri]
+     */
+    SUBSCRIBE2(
+        """[32,713845234,{},"com.myapp.mytopic1"]""",
+        Message.Subscribe(713845234, "com.myapp.mytopic1")
+    ),
+    /**
      * [SUBSCRIBED, SUBSCRIBE.Request|id, Subscription|id]
      */
     SUBSCRIBED(
         """[33,713845233,5512315355]""",
         Message.Subscribed(requestId = 713845233, subscriptionId = 5512315355)
+    ),
+    /**
+     * [SUBSCRIBED, SUBSCRIBE.Request|id, Subscription|id]
+     */
+    SUBSCRIBED2(
+        """[33,713845234,5512315356]""",
+        Message.Subscribed(requestId = 713845234, subscriptionId = 5512315356)
     ),
     /**
      * [ERROR, SUBSCRIBE, SUBSCRIBE.Request|id, Details|dict, Error|uri]
@@ -126,11 +140,25 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
         Message.Unsubscribe(requestId = 85346237, subscriptionId = 5512315355)
     ),
     /**
+     * [UNSUBSCRIBE, Request|id, SUBSCRIBED.Subscription|id]
+     */
+    UNSUBSCRIBE2(
+        """[34,85346238,5512315356]""",
+        Message.Unsubscribe(requestId = 85346238, subscriptionId = 5512315356)
+    ),
+    /**
      * [UNSUBSCRIBED, UNSUBSCRIBE.Request|id]
      */
     UNSUBSCRIBED(
         """[35,85346237]""",
         Message.Unsubscribed(requestId = 85346237)
+    ),
+    /**
+     * [UNSUBSCRIBED, UNSUBSCRIBE.Request|id]
+     */
+    UNSUBSCRIBED2(
+        """[35,85346238]""",
+        Message.Unsubscribed(requestId = 85346238)
     ),
     /**
      * [UNSUBSCRIBE, Request|id, SUBSCRIBED.Subscription|id]
@@ -192,6 +220,19 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
         """[36,5512315355,4429313566,{}]""",
         Message.Event(
             subscriptionId = 5512315355,
+            publicationId = 4429313566,
+            details = emptyJsonObject(),
+            arguments = null,
+            argumentsKw = null
+        )
+    ),
+    /**
+     * [EVENT, SUBSCRIBED.Subscription|id, PUBLISHED.Publication|id, Details|dict]
+     */
+    EVENT_NO_ARG2(
+        """[36,5512315356,4429313566,{}]""",
+        Message.Event(
+            subscriptionId = 5512315356,
             publicationId = 4429313566,
             details = emptyJsonObject(),
             arguments = null,

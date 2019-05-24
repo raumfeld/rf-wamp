@@ -60,7 +60,7 @@ class MainActivity : AppCompatActivity(), WampSession.WampSessionListener {
                         ?: return@launch
                 channel.consumeEach {
                     when (it) {
-                        is CallerEvent.Result -> toast("Call returned: ${it.arguments}\n${it.argumentsKw}")
+                        is CallerEvent.Result     -> toast("Call returned: ${it.arguments}\n${it.argumentsKw}")
                         is CallerEvent.CallFailed -> toast("Call failed: ${it.errorUri}")
                     }
                 }
@@ -80,20 +80,23 @@ class MainActivity : AppCompatActivity(), WampSession.WampSessionListener {
                 val channel = session?.register(registerProcedureUri.text.toString()) ?: return@launch
                 channel.consumeEach {
                     when (it) {
-                        is CalleeEvent.ProcedureRegistered -> {
+                        is CalleeEvent.ProcedureRegistered   -> {
                             registrationId = it.registrationId
                             toast("Procedure was registered successfully")
                         }
-                        is CalleeEvent.Invocation          -> {
+                        is CalleeEvent.Invocation            -> {
                             toast(
                                 "Received invocation: ${it.arguments}\n" +
                                         "${it.argumentsKw}\nReturning $result"
                             )
                             it.returnResult(CallerEvent.Result(result))
                         }
-                        is CalleeEvent.RegistrationFailed  -> toast("Procedure could not be registered: ${it.errorUri}")
+                        is CalleeEvent.ProcedureUnregistered -> toast("We have unregistered")
+                        is CalleeEvent.RegistrationFailed    -> toast("Procedure registration failed with: ${it.errorUri}")
+                        is CalleeEvent.UnregistrationFailed  -> toast("Procedure unregistration failed with: ${it.errorUri}")
                     }
                 }
+                toast("Registration has ended")
             }
         }
         subscribe.setOnClickListener {
@@ -111,7 +114,8 @@ class MainActivity : AppCompatActivity(), WampSession.WampSessionListener {
                             subscriptionId = null
                             toast("Subscription failed with: ${it.errorUri}")
                         }
-                        ClientUnsubscribed         -> toast("We have unsubscribed")
+                        SubscriptionClosed         -> toast("We have unsubscribed")
+                        is UnsubscriptionFailed    -> toast("Unsubscription failed with: ${it.errorUri}")
                     }
                 }
                 toast("Subscription has ended")
@@ -142,12 +146,15 @@ class MainActivity : AppCompatActivity(), WampSession.WampSessionListener {
         join.setOnClickListener {
             val realmString = realm.text.toString()
             if (session == null) {
-                WampClient(OkHttpWebSocketFactory()).createSession(uri = wsUrl.text.toString()) { result ->
+                WampClient(OkHttpWebSocketFactory()).createSession(
+                    uri = wsUrl.text.toString(),
+                    sessionListener = this
+                ) { result ->
                     GlobalScope.launch(Main) {
                         result.onSuccess {
                             Log.i(TAG, "WAMP session created successfully, joining realm ...")
                             session = it
-                            it.join(realmString, this@MainActivity)
+                            it.join(realmString)
                         }
                         result.onFailure {
                             Log.e(TAG, "WebSocket failure", it)
@@ -159,7 +166,7 @@ class MainActivity : AppCompatActivity(), WampSession.WampSessionListener {
             } else {
                 GlobalScope.launch(Main) {
                     Log.i(TAG, "Re-using WAMP session, joining realm ...")
-                    session?.join(realmString, this@MainActivity)
+                    session?.join(realmString)
                 }
             }
 
@@ -194,15 +201,15 @@ class MainActivity : AppCompatActivity(), WampSession.WampSessionListener {
     }
 
     override fun onSessionShutdown() {
-        toast("Session was shutdown)")
+        toast("Session was shutdown")
     }
 
-    override fun onRealmJoined() {
-        toast("Realm was joined")
+    override fun onRealmJoined(realm: String) {
+        toast("Realm '$realm' was joined")
     }
 
-    override fun onRealmLeft(fromRouter: Boolean) {
-        toast("Realm was left (fromRouter: $fromRouter)")
+    override fun onRealmLeft(realm: String, fromRouter: Boolean) {
+        toast("Realm '$realm' was left (fromRouter: $fromRouter)")
     }
 
     class OkHttpWebSocketDelegate(val webSocket: WebSocket) : WebSocketDelegate {

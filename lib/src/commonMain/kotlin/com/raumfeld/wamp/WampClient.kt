@@ -9,16 +9,17 @@ import kotlin.Result.Companion.success
 
 class WampClient(
     private val socketFactory: WebSocketFactory,
-    private val sessionFactory: (WebSocketDelegate) -> WampSession = { WampSession(it) }
+    private val sessionFactory: (WebSocketDelegate, WampSession.WampSessionListener) -> WampSession =
+        { delegate, listener -> WampSession(delegate, listener) }
 ) {
 
-    fun createSession(uri: String, callback: (Result<WampSession>) -> Unit) {
+    fun createSession(uri: String, sessionListener: WampSession.WampSessionListener, callback: (Result<WampSession>) -> Unit) {
         socketFactory.createWebSocket(uri, object : WebSocketCallback {
 
             private var session: WampSession? = null
 
             override suspend fun onOpen(webSocketDelegate: WebSocketDelegate) {
-                session = sessionFactory(webSocketDelegate).apply {
+                session = sessionFactory(webSocketDelegate, sessionListener).apply {
                     callback(success(this))
                 }
             }

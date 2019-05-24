@@ -19,9 +19,10 @@ class WampClientTests {
 
     @MockK private lateinit var mockFactory: WebSocketFactory
     @MockK(relaxed = true) private lateinit var mockSession: WampSession
-    @MockK private lateinit var mockSessionFactory: (WebSocketDelegate) -> WampSession
+    @MockK private lateinit var mockSessionFactory: (WebSocketDelegate, WampSession.WampSessionListener) -> WampSession
     @MockK private lateinit var mockResultCallback: (Result<WampSession>) -> Unit
     @MockK private lateinit var mockWebSocketDelegate: WebSocketDelegate
+    @MockK private lateinit var mockSessionListener: WampSession.WampSessionListener
     private lateinit var client: WampClient
     private lateinit var capturedWebSocketCallback: WebSocketCallback
 
@@ -29,7 +30,7 @@ class WampClientTests {
     fun setup() {
         MockKAnnotations.init(this)
         client = WampClient(mockFactory, mockSessionFactory)
-        every { mockSessionFactory(any()) } returns mockSession
+        every { mockSessionFactory(any(), any()) } returns mockSession
         every { mockResultCallback.invoke(any()) } just Runs
         captureWebSocketCallback()
     }
@@ -48,7 +49,7 @@ class WampClientTests {
     fun shouldCallBackWithSuccess() {
         createSession()
         verify { mockResultCallback.invoke(success(mockSession)) }
-        verify { mockSessionFactory.invoke(mockWebSocketDelegate) }
+        verify { mockSessionFactory.invoke(mockWebSocketDelegate, mockSessionListener) }
     }
 
     @Test
@@ -97,7 +98,7 @@ class WampClientTests {
     }
 
     private fun createSession(callOnOpen: Boolean = true) = runTest {
-        client.createSession(WS_URI, mockResultCallback)
+        client.createSession(WS_URI, mockSessionListener, mockResultCallback)
         if (callOnOpen)
             capturedWebSocketCallback.onOpen(mockWebSocketDelegate)
     }
