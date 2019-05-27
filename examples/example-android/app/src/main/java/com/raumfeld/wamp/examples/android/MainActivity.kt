@@ -8,6 +8,7 @@ import androidx.core.widget.doAfterTextChanged
 import com.raumfeld.wamp.WampClient
 import com.raumfeld.wamp.protocol.RegistrationId
 import com.raumfeld.wamp.protocol.SubscriptionId
+import com.raumfeld.wamp.pubsub.PublicationEvent
 import com.raumfeld.wamp.pubsub.SubscriptionEvent.*
 import com.raumfeld.wamp.rpc.CalleeEvent
 import com.raumfeld.wamp.rpc.CallerEvent
@@ -130,7 +131,19 @@ class MainActivity : AppCompatActivity(), WampSession.WampSessionListener {
         }
         publish.setOnClickListener {
             GlobalScope.launch(Main) {
-                session?.publish(publishTopic.text.toString(), jsonArray { +publishValue.text.toString() })
+                val channel = session?.publish(
+                    publishTopic.text.toString(),
+                    jsonArray { +publishValue.text.toString() },
+                    null,
+                    acknowledge = true
+                ) ?: return@launch
+
+                channel.consumeEach {
+                    when (it) {
+                        is PublicationEvent.PublicationSucceeded -> toast("Publish succeeded!")
+                        is PublicationEvent.PublicationFailed    -> toast("Publish failed with: ${it.errorUri}")
+                    }
+                }
             }
         }
         leave.setOnClickListener {

@@ -171,6 +171,20 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
      * [PUBLISH, Request|id, Options|dict, Topic|uri]
      */
     PUBLISH_NO_ARG(
+        """[16,239714735,{"acknowledge":true},"com.myapp.mytopic1"]""",
+        Message.Publish(239714735, "com.myapp.mytopic1", null, null, json { "acknowledge" to true })
+    ),
+    /**
+     * [PUBLISH, Request|id, Options|dict, Topic|uri]
+     */
+    PUBLISH_NO_ARG2(
+        """[16,239714736,{"acknowledge":true},"com.myapp.mytopic1"]""",
+        Message.Publish(239714736, "com.myapp.mytopic1", null, null, json { "acknowledge" to true })
+    ),
+    /**
+     * [PUBLISH, Request|id, Options|dict, Topic|uri]
+     */
+    PUBLISH_NO_ARG_NO_ACKNOWLEDGE(
         """[16,239714735,{},"com.myapp.mytopic1"]""",
         Message.Publish(239714735, "com.myapp.mytopic1", null, null)
     ),
@@ -178,14 +192,14 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
      * [PUBLISH, Request|id, Options|dict, Topic|uri, Arguments|list]
      */
     PUBLISH_ONLY_ARRAY_ARG(
-        """[16,239714735,{},"com.myapp.mytopic1",["Hello, world!"]]""",
-        Message.Publish(239714735, "com.myapp.mytopic1", jsonArray { +"Hello, world!" }, null)
+        """[16,239714735,{"acknowledge":true},"com.myapp.mytopic1",["Hello, world!"]]""",
+        Message.Publish(239714735, "com.myapp.mytopic1", jsonArray { +"Hello, world!" }, null, json { "acknowledge" to true })
     ),
     /**
      * [PUBLISH, Request|id, Options|dict, Topic|uri, Arguments|list, ArgumentsKw|dict]
      */
     PUBLISH_FULL_ARGS(
-        """[16,239714735,{},"com.myapp.mytopic1",[],{"color":"orange","sizes":[23,42,7]}]""",
+        """[16,239714735,{"acknowledge":true},"com.myapp.mytopic1",[],{"color":"orange","sizes":[23,42,7]}]""",
         Message.Publish(
             requestId = 239714735,
             topic = "com.myapp.mytopic1",
@@ -197,7 +211,8 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
                     +(42 as Number)
                     +(7 as Number)
                 }
-            })
+            },
+            options = json { "acknowledge" to true })
     ),
     /**
      * [PUBLISHED, PUBLISH.Request|id, Publication|id]
@@ -205,6 +220,13 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
     PUBLISHED(
         """[17,239714735,4429313566]""",
         Message.Published(requestId = 239714735, publicationId = 4429313566)
+    ),
+    /**
+     * [PUBLISHED, PUBLISH.Request|id, Publication|id]
+     */
+    PUBLISHED2(
+        """[17,239714736,4429313567]""",
+        Message.Published(requestId = 239714736, publicationId = 4429313567)
     ),
     /**
      * [ERROR, PUBLISH, PUBLISH.Request|id, Details|dict, Error|uri]

@@ -2,6 +2,7 @@ package com.raumfeld.wamp.session
 
 import com.raumfeld.wamp.IdGenerator
 import com.raumfeld.wamp.protocol.*
+import com.raumfeld.wamp.pubsub.PublicationEvent
 import com.raumfeld.wamp.pubsub.SubscriptionEvent
 import com.raumfeld.wamp.rpc.CalleeEvent
 import com.raumfeld.wamp.rpc.CallerEvent
@@ -67,7 +68,14 @@ class WampSession(
 
         data class Error(val errorType: MessageType, val requestId: RequestId, val wampErrorUri: String) : Trigger()
 
-        data class Publish(val topic: String, val arguments: JsonArray?, val argumentsKw: JsonObject?) : Trigger()
+        data class Publish(
+            val topic: String,
+            val arguments: JsonArray?,
+            val argumentsKw: JsonObject?,
+            val acknowledge: Boolean,
+            val eventChannel: SendChannel<PublicationEvent>
+        ) : Trigger()
+
         object Leave : Trigger()
         object Shutdown : Trigger()
         class WebSocketClosed(val code: Int, val reason: String) : Trigger()
@@ -85,6 +93,7 @@ class WampSession(
     private val pendingUnregistrations = mutableMapOf<RequestId, Pair<RegistrationId, SendChannel<CalleeEvent>>>()
     private val registrations = mutableMapOf<RegistrationId, SendChannel<CalleeEvent>>()
     private val pendingCalls = mutableMapOf<RequestId, SendChannel<CallerEvent>>()
+    private val pendingPublications = mutableMapOf<RequestId, SendChannel<PublicationEvent>>()
 
     suspend fun join(realm: String): Unit = dispatch(Join(realm))
 
@@ -101,9 +110,12 @@ class WampSession(
 
     suspend fun publish(
         topic: String,
-        arguments: JsonArray = emptyJsonArray(),
-        argumentsKw: JsonObject = emptyJsonObject()
-    ): Unit = dispatch(Publish(topic, arguments, argumentsKw))
+        arguments: JsonArray? = null,
+        argumentsKw: JsonObject? = null,
+        acknowledge: Boolean = false
+    ): ReceiveChannel<PublicationEvent> = Channel<PublicationEvent>().also {
+        dispatch(Publish(topic, arguments, argumentsKw, acknowledge, it))
+    }
 
     suspend fun register(procedureId: ProcedureId): ReceiveChannel<CalleeEvent> =
         Channel<CalleeEvent>().also {
@@ -192,7 +204,7 @@ class WampSession(
                         message.arguments,
                         message.argumentsKw
                     )
-                    is Message.Published    -> onPublishedReceived()
+                    is Message.Published    -> onPublishedReceived(message.requestId, message.publicationId)
                     is Message.Registered   -> onRegisteredReceived(message.requestId, message.registrationId)
                     is Message.Unregistered -> onUnregisteredReceived(message.requestId)
                     is Message.Invocation   -> onInvocationReceived(
@@ -222,7 +234,13 @@ class WampSession(
             }
             is Subscribe       -> setupSubscription(trigger.topic, trigger.eventChannel)
             is Unsubscribe     -> doUnsubscribe(trigger.subscriptionId)
-            is Publish         -> doPublish(trigger.topic, trigger.arguments, trigger.argumentsKw)
+            is Publish         -> doPublish(
+                trigger.topic,
+                trigger.arguments,
+                trigger.argumentsKw,
+                trigger.acknowledge,
+                trigger.eventChannel
+            )
             is Register        -> doRegister(trigger.procedureId, trigger.eventChannel)
             is Unregister      -> doUnregister(trigger.registrationId)
             is Call            -> doCall(
@@ -316,8 +334,28 @@ class WampSession(
         eventChannel.sendAsync(CalleeEvent.ProcedureRegistered(registrationId))
     }
 
-    private suspend fun doPublish(topic: String, arguments: JsonArray?, argumentsKw: JsonObject?) =
-        send(Message.Publish(idGenerator.newId(), topic, arguments, argumentsKw))
+    private suspend fun doPublish(
+        topic: String,
+        arguments: JsonArray?,
+        argumentsKw: JsonObject?,
+        acknowledge: Boolean,
+        eventChannel: SendChannel<PublicationEvent>
+    ) {
+        val requestId = idGenerator.newId()
+        if (acknowledge)
+            pendingPublications[requestId] = eventChannel
+
+        send(
+            Message.Publish(
+                requestId,
+                topic = topic,
+                arguments = arguments,
+                argumentsKw = argumentsKw,
+                options = if (acknowledge) json { "acknowledge" to true } else emptyJsonObject()))
+
+        if (!acknowledge)
+            eventChannel.close()
+    }
 
     private suspend fun doUnsubscribe(subscriptionId: SubscriptionId) {
         val channel = subscriptions.remove(subscriptionId)
@@ -348,11 +386,21 @@ class WampSession(
         when (errorType) {
             Message.Unsubscribe.type -> failUnsubscription(requestId, wampErrorUri)
             Message.Unregister.type  -> failUnregistration(requestId, wampErrorUri)
+            Message.Publish.type     -> failPublication(requestId, wampErrorUri)
             Message.Subscribe.type   -> failSubscription(requestId, wampErrorUri)
             Message.Register.type    -> failRegistration(requestId, wampErrorUri)
             Message.Call.type        -> failCall(requestId, wampErrorUri)
             else                     -> onProtocolViolated("Received invalid REQUEST. Type: $errorType")
         }
+    }
+
+    private suspend fun failPublication(requestId: RequestId, wampErrorUri: String) {
+        val eventChannel = pendingPublications.remove(requestId)
+        if (eventChannel == null) {
+            onProtocolViolated("Received PUBLISH ERROR that we have no pending publication for. RequestId = $requestId ERROR uri = $wampErrorUri")
+            return
+        }
+        failPublication(wampErrorUri, eventChannel)
     }
 
     private suspend fun failCall(requestId: RequestId, wampErrorUri: String) {
@@ -412,11 +460,19 @@ class WampSession(
     private fun failCall(errorUri: String, channel: SendChannel<CallerEvent>) =
         channel.sendAsync(CallerEvent.CallFailed(errorUri), close = true)
 
+    private fun failPublication(errorUri: String, channel: SendChannel<PublicationEvent>) =
+        channel.sendAsync(PublicationEvent.PublicationFailed(errorUri), close = true)
+
     private fun failRegistration(errorUri: String, channel: SendChannel<CalleeEvent>) =
         channel.sendAsync(CalleeEvent.RegistrationFailed(errorUri), close = true)
 
-    private fun onPublishedReceived() {
-        // we don't care for now, since we don't use PUBLISH.Options.acknowledge == true
+    private suspend fun onPublishedReceived(requestId: RequestId, publicationId: PublicationId) {
+        val eventChannel = pendingPublications.remove(requestId)
+        if (eventChannel == null) {
+            onProtocolViolated("Received PUBLISHED that we have no pending publication for. RequestId = $requestId publicationId = $publicationId")
+            return
+        }
+        eventChannel.sendAsync(PublicationEvent.PublicationSucceeded(publicationId), close = true)
     }
 
     private suspend fun onEventReceived(
@@ -570,6 +626,8 @@ class WampSession(
         subscriptions.clear()
         pendingCalls.values.forEach { failCall(reason, it) }
         pendingCalls.clear()
+        pendingPublications.values.forEach { failPublication(reason, it) }
+        pendingPublications.clear()
     }
 
     private suspend fun closeWebSocket() = webSocketDelegate.close(WebSocketCloseCodes.GOING_AWAY, "Session closed")

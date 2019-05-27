@@ -115,9 +115,8 @@ internal class WampSessionTests : BaseSessionTests() {
             GOODBYE_SHUTDOWN_WITH_MESSAGE,
             GOODBYE_CLOSE_REALM,
             // these are just ignored
-            PUBLISHED,
-            PUBLISH_ERROR,
             SUBSCRIBED2,
+            PUBLISHED2,
             UNSUBSCRIBED2,
             EVENT_NO_ARG2,
             // for these we sent unique protocol violations
@@ -147,6 +146,8 @@ internal class WampSessionTests : BaseSessionTests() {
 
         receivedToSentMessages[SUBSCRIBED] =
             protocolViolationMessage("Received SUBSCRIBED that we have no pending subscription for. RequestId = ${(SUBSCRIBED.message as Message.Subscribed).requestId} subscriptionId = ${SUBSCRIBED.message.subscriptionId}")
+        receivedToSentMessages[PUBLISHED] =
+            protocolViolationMessage("Received PUBLISHED that we have no pending publication for. RequestId = ${(PUBLISHED.message as Message.Published).requestId} publicationId = ${PUBLISHED.message.publicationId}")
         receivedToSentMessages[UNSUBSCRIBED] =
             protocolViolationMessage("Received UNSUBSCRIBED that we have no pending unsubscription for. RequestId = ${(UNSUBSCRIBED.message as Message.Unsubscribed).requestId}")
         receivedToSentMessages[REGISTERED] =
@@ -161,6 +162,8 @@ internal class WampSessionTests : BaseSessionTests() {
             protocolViolationMessage("Received EVENT that we have no subscription or pending unsubscription for. SubscriptionId = ${(EVENT_FULL_ARGS.message as Message.Event).subscriptionId}")
         receivedToSentMessages[SUBSCRIBE_ERROR] =
             protocolViolationMessage("Received SUBSCRIBE ERROR that we have no pending subscription for. RequestId = ${(SUBSCRIBE_ERROR.message as Message.Error).requestId} ERROR uri = ${SUBSCRIBE_ERROR.message.wampErrorUri}")
+        receivedToSentMessages[PUBLISH_ERROR] =
+            protocolViolationMessage("Received PUBLISH ERROR that we have no pending publication for. RequestId = ${(PUBLISH_ERROR.message as Message.Error).requestId} ERROR uri = ${PUBLISH_ERROR.message.wampErrorUri}")
         receivedToSentMessages[UNSUBSCRIBE_ERROR] =
             protocolViolationMessage("Received UNSUBSCRIBE ERROR that we have no pending unsubscription for. RequestId = ${(UNSUBSCRIBE_ERROR.message as Message.Error).requestId} ERROR uri = ${UNSUBSCRIBE_ERROR.message.wampErrorUri}")
         receivedToSentMessages[REGISTER_ERROR] =

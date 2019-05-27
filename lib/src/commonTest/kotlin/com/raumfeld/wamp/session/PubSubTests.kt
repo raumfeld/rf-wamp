@@ -1,17 +1,19 @@
 package com.raumfeld.wamp.session
 
+import com.raumfeld.wamp.protocol.*
 import com.raumfeld.wamp.protocol.ExampleMessage
 import com.raumfeld.wamp.protocol.ExampleMessage.*
-import com.raumfeld.wamp.protocol.Message
-import com.raumfeld.wamp.protocol.RequestMessage
-import com.raumfeld.wamp.protocol.SubscriptionId
+import com.raumfeld.wamp.pubsub.PublicationEvent
 import com.raumfeld.wamp.pubsub.SubscriptionEvent
 import com.raumfeld.wamp.pubsub.SubscriptionEvent.*
 import com.raumfeld.wamp.runTest
+import io.mockk.clearMocks
 import io.mockk.every
 import io.mockk.verify
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.withTimeout
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -19,7 +21,8 @@ import kotlin.test.fail
 
 internal class PubSubTests : BaseSessionTests() {
 
-    private lateinit var eventChannel: ReceiveChannel<SubscriptionEvent>
+    private lateinit var subscriptionEventChannel: ReceiveChannel<SubscriptionEvent>
+    private lateinit var publicationEventChannel: ReceiveChannel<PublicationEvent>
 
     @BeforeTest
     override fun setup() = super.setup()
@@ -38,7 +41,7 @@ internal class PubSubTests : BaseSessionTests() {
         receiveWelcome()
         mockNextRequestIdWithIdFrom(SUBSCRIBE_ERROR)
         subscribe()
-        assertNoEvent() // haven't gotten SUBSCRIBED back yet
+        assertNoSubscriptionEvent() // haven't gotten SUBSCRIBED back yet
         receiveMessages(SUBSCRIBE_ERROR)
         assertSubscriptionFailed()
     }
@@ -53,10 +56,10 @@ internal class PubSubTests : BaseSessionTests() {
         val subscriptionId = fastForwardToSubscribed()
         mockNextRequestIdWithIdFrom(UNSUBSCRIBE)
         unsubscribe(subscriptionId)
-        assertNoEvent() // haven't gotten UNSUBSCRIBED back yet
+        assertNoSubscriptionEvent() // haven't gotten UNSUBSCRIBED back yet
         receiveMessages(UNSUBSCRIBED)
-        getEvent<SubscriptionClosed>()
-        assertChannelClosed()
+        getSubscriptionEvent<SubscriptionClosed>()
+        assertSubscriptionChannelClosed()
     }
 
     @Test
@@ -64,7 +67,7 @@ internal class PubSubTests : BaseSessionTests() {
         val subscriptionId = fastForwardToSubscribed()
         mockNextRequestIdWithIdFrom(UNSUBSCRIBE_ERROR)
         unsubscribe(subscriptionId)
-        assertNoEvent() // haven't gotten UNSUBSCRIBED back yet
+        assertNoSubscriptionEvent() // haven't gotten UNSUBSCRIBED back yet
         receiveMessages(UNSUBSCRIBE_ERROR)
         assertUnsubscriptionFailed()
     }
@@ -102,7 +105,7 @@ internal class PubSubTests : BaseSessionTests() {
     }
 
     @Test
-    fun shouldFailPendingSubscriptionShutdown() = runTest {
+    fun shouldFailPendingSubscriptionOnShutdown() = runTest {
         failOnSessionAbort()
         joinRealm()
         receiveWelcome()
@@ -163,10 +166,10 @@ internal class PubSubTests : BaseSessionTests() {
         mockNextRequestIdWithIdFrom(UNSUBSCRIBE)
         unsubscribe(subscriptionId)
         receiveMessages(UNSUBSCRIBED)
-        getEvent<SubscriptionClosed>()
+        getSubscriptionEvent<SubscriptionClosed>()
         receiveMessages(HELLO)
-        assertNoEvent()
-        assertChannelClosed()
+        assertNoSubscriptionEvent()
+        assertSubscriptionChannelClosed()
     }
 
     @Test
@@ -176,7 +179,7 @@ internal class PubSubTests : BaseSessionTests() {
         receiveWelcome()
         subscribe()
         unsubscribe(42)
-        assertNoEvent()
+        assertNoSubscriptionEvent()
     }
 
     @Test
@@ -188,7 +191,195 @@ internal class PubSubTests : BaseSessionTests() {
     }
 
     @Test
-    fun shouldUseSeparateChannels() = runTest {
+    fun shouldAbortWhenPublishIsCalledBeforeJoinAndAfterAborted() = runTest {
+        failOnSessionAbort(false)
+        publish(
+            (PUBLISH_NO_ARG.message as Message.Publish).topic,
+            PUBLISH_NO_ARG.message.arguments,
+            PUBLISH_NO_ARG.message.argumentsKw
+        )
+        verifySessionAborted()
+        verifyWebSocketWasClosed()
+
+        clearMocks(sessionListener)
+        publish(
+            PUBLISH_NO_ARG.message.topic,
+            PUBLISH_NO_ARG.message.arguments,
+            PUBLISH_NO_ARG.message.argumentsKw
+        )
+        verifySessionAborted()
+    }
+
+    @Test
+    fun shouldPublishNoArg() = runTest {
+        failOnSessionAbort()
+        joinRealm()
+        receiveWelcome()
+        mockNextRequestIdWithIdFrom(PUBLISH_NO_ARG)
+        publish(
+            (PUBLISH_NO_ARG.message as Message.Publish).topic,
+            PUBLISH_NO_ARG.message.arguments,
+            PUBLISH_NO_ARG.message.argumentsKw
+        )
+        verifyMessagesSent(HELLO, PUBLISH_NO_ARG)
+        receiveMessages(PUBLISHED)
+        assertPublicationSucceeded(PUBLISHED)
+    }
+
+    @Test
+    fun shouldPublishArrayArg() = runTest {
+        failOnSessionAbort()
+        joinRealm()
+        receiveWelcome()
+        mockNextRequestIdWithIdFrom(PUBLISH_ONLY_ARRAY_ARG)
+        publish(
+            (PUBLISH_ONLY_ARRAY_ARG.message as Message.Publish).topic,
+            PUBLISH_ONLY_ARRAY_ARG.message.arguments,
+            PUBLISH_ONLY_ARRAY_ARG.message.argumentsKw
+        )
+        verifyMessagesSent(HELLO, PUBLISH_ONLY_ARRAY_ARG)
+        receiveMessages(PUBLISHED)
+        assertPublicationSucceeded(PUBLISHED)
+    }
+
+    @Test
+    fun shouldPublishAllArgs() = runTest {
+        failOnSessionAbort()
+        joinRealm()
+        receiveWelcome()
+        mockNextRequestIdWithIdFrom(PUBLISH_FULL_ARGS)
+        publish(
+            (PUBLISH_FULL_ARGS.message as Message.Publish).topic,
+            PUBLISH_FULL_ARGS.message.arguments,
+            PUBLISH_FULL_ARGS.message.argumentsKw
+        )
+        verifyMessagesSent(HELLO, PUBLISH_FULL_ARGS)
+        receiveMessages(PUBLISHED)
+        assertPublicationSucceeded(PUBLISHED)
+    }
+
+    @Test
+    fun shouldFailPublication() = runTest {
+        failOnSessionAbort()
+        joinRealm()
+        receiveWelcome()
+        mockNextRequestIdWithIdFrom(PUBLISH_NO_ARG)
+        publish(
+            (PUBLISH_NO_ARG.message as Message.Publish).topic,
+            PUBLISH_NO_ARG.message.arguments,
+            PUBLISH_NO_ARG.message.argumentsKw
+        )
+        receiveMessages(PUBLISH_ERROR)
+        assertPublicationFailed()
+    }
+
+    @Test
+    fun shouldFailPublicationOnAbort() = runTest {
+        failOnSessionAbort()
+        joinRealm()
+        receiveWelcome()
+        mockNextRequestIdWithIdFrom(PUBLISH_NO_ARG)
+        publish(
+            (PUBLISH_NO_ARG.message as Message.Publish).topic,
+            PUBLISH_NO_ARG.message.arguments,
+            PUBLISH_NO_ARG.message.argumentsKw
+        )
+        failOnSessionAbort(false)
+        receiveMessages(HELLO)
+        assertPublicationFailed()
+    }
+
+    @Test
+    fun shouldFailPublicationOnLeavingOrShuttingDown() = runTest {
+        failOnSessionAbort()
+        joinRealm()
+        receiveWelcome()
+        mockNextRequestIdWithIdFrom(PUBLISH_NO_ARG)
+        publish(
+            (PUBLISH_NO_ARG.message as Message.Publish).topic,
+            PUBLISH_NO_ARG.message.arguments,
+            PUBLISH_NO_ARG.message.argumentsKw
+        )
+        leaveRealm()
+        receiveGoodbyeAndOut()
+        assertPublicationFailed()
+
+        joinRealm()
+        receiveWelcome()
+        mockNextRequestIdWithIdFrom(PUBLISH_NO_ARG)
+        publish(
+            PUBLISH_NO_ARG.message.topic,
+            PUBLISH_NO_ARG.message.arguments,
+            PUBLISH_NO_ARG.message.argumentsKw
+        )
+        shutdownSession()
+        receiveGoodbyeAndOut()
+        assertPublicationFailed()
+    }
+
+
+    @Test
+    fun shouldNotAcknowledgePublication() = runTest {
+        failOnSessionAbort()
+        joinRealm()
+        receiveWelcome()
+        mockNextRequestIdWithIdFrom(PUBLISH_NO_ARG_NO_ACKNOWLEDGE)
+        publish(
+            (PUBLISH_NO_ARG_NO_ACKNOWLEDGE.message as Message.Publish).topic,
+            PUBLISH_NO_ARG_NO_ACKNOWLEDGE.message.arguments,
+            PUBLISH_NO_ARG_NO_ACKNOWLEDGE.message.argumentsKw,
+            acknowledge = false
+        )
+        assertNoPublicationEvent()
+        assertPublicationChannelClosed()
+    }
+
+    @Test
+    fun shouldUseSeparatePublicationChannels() = runTest {
+        failOnSessionAbort()
+        joinRealm()
+        receiveWelcome()
+
+        mockNextRequestIdWithIdFrom(PUBLISH_NO_ARG)
+        val channel1 = session.publish(
+            (PUBLISH_NO_ARG.message as Message.Publish).topic,
+            PUBLISH_NO_ARG.message.arguments,
+            PUBLISH_NO_ARG.message.argumentsKw,
+            acknowledge = true
+        )
+        mockNextRequestIdWithIdFrom(PUBLISH_NO_ARG_NO_ACKNOWLEDGE)
+        val channel2 = session.publish(
+            (PUBLISH_NO_ARG_NO_ACKNOWLEDGE.message as Message.Publish).topic,
+            PUBLISH_NO_ARG_NO_ACKNOWLEDGE.message.arguments,
+            PUBLISH_NO_ARG_NO_ACKNOWLEDGE.message.argumentsKw,
+            acknowledge = false
+        )
+        mockNextRequestIdWithIdFrom(PUBLISH_NO_ARG2)
+        val channel3 = session.publish(
+            (PUBLISH_NO_ARG2.message as Message.Publish).topic,
+            PUBLISH_NO_ARG2.message.arguments,
+            PUBLISH_NO_ARG2.message.argumentsKw,
+            acknowledge = true
+        )
+
+        clearMocks(mockWebSocketDelegate)
+
+        receiveMessages(PUBLISHED2)
+        receiveMessages(PUBLISHED)
+
+        val publicationId1 = getEvent<PublicationEvent.PublicationSucceeded>(channel1).publicationId
+        val publicationId2 = getEvent<PublicationEvent.PublicationSucceeded>(channel3).publicationId
+
+        assertEquals((PUBLISHED.message as Message.Published).publicationId, publicationId1)
+        assertEquals((PUBLISHED2.message as Message.Published).publicationId, publicationId2)
+
+        assertChannelClosed(channel1)
+        assertChannelClosed(channel2)
+        assertChannelClosed(channel3)
+    }
+
+    @Test
+    fun shouldUseSeparateSubscriptionChannels() = runTest {
         failOnSessionAbort()
         joinRealm()
         receiveWelcome()
@@ -264,7 +455,7 @@ internal class PubSubTests : BaseSessionTests() {
         subscribe()
         verifyMessagesSent(SUBSCRIBE)
         receiveMessages(SUBSCRIBED)
-        val subscriptionId = getEvent<SubscriptionEstablished>().subscriptionId
+        val subscriptionId = getSubscriptionEvent<SubscriptionEstablished>().subscriptionId
         assertEquals(subscriptionId, (SUBSCRIBED.message as Message.Subscribed).subscriptionId)
         return subscriptionId
     }
@@ -278,36 +469,65 @@ internal class PubSubTests : BaseSessionTests() {
         } answers { if (fail) fail("Session was aborted prematurely: $invocation") }
     }
 
-    private suspend inline fun <reified T : SubscriptionEvent> getEvent(channel: ReceiveChannel<*> = eventChannel) =
+    private suspend inline fun <reified T> getSubscriptionEvent() = getEvent<T>(subscriptionEventChannel)
+
+    private suspend inline fun <reified T> getPublicationEvent() = getEvent<T>(publicationEventChannel)
+
+
+    private suspend inline fun <reified T> getEvent(channel: ReceiveChannel<*>) =
         withTimeout(1000) { channel.receive() } as T
 
-    private fun getEventOrNull(channel: ReceiveChannel<*> = eventChannel) = channel.poll()
+    private fun getEventOrNull(channel: ReceiveChannel<*> = subscriptionEventChannel) = channel.poll()
 
     private fun mockNextRequestIdWithIdFrom(message: ExampleMessage) {
         every { mockIdGenerator.newId() } returns (message.message as RequestMessage).requestId
     }
 
     private suspend fun subscribe(topic: String = (SUBSCRIBE.message as Message.Subscribe).topic) {
-        eventChannel = session.subscribe(topic)
+        subscriptionEventChannel = session.subscribe(topic)
+    }
+
+    private suspend fun publish(topic: String, arguments: JsonArray?, argumentsKw: JsonObject?, acknowledge: Boolean = true) {
+        publicationEventChannel = session.publish(topic, arguments, argumentsKw, acknowledge)
     }
 
     private suspend fun unsubscribe(subscriptionId: SubscriptionId) {
         session.unsubscribe(subscriptionId)
     }
 
-    private fun assertNoEvent(channel: ReceiveChannel<*> = eventChannel) = assertEquals(expected = null, actual = getEventOrNull(channel))
+    private fun assertNoSubscriptionEvent() = assertNoEvent(subscriptionEventChannel)
+
+    private fun assertNoPublicationEvent() = assertNoEvent(publicationEventChannel)
+
+    private fun assertNoEvent(channel: ReceiveChannel<*>) =
+        assertEquals(expected = null, actual = getEventOrNull(channel))
 
     private suspend fun assertSubscriptionFailed() {
-        getEvent<SubscriptionFailed>()
-        assertChannelClosed()
+        getSubscriptionEvent<SubscriptionFailed>()
+        assertSubscriptionChannelClosed()
     }
 
     private suspend fun assertUnsubscriptionFailed() {
-        getEvent<UnsubscriptionFailed>()
-        assertChannelClosed()
+        getSubscriptionEvent<UnsubscriptionFailed>()
+        assertSubscriptionChannelClosed()
     }
 
-    private suspend fun assertChannelClosed(channel: ReceiveChannel<*> = eventChannel) {
+    private suspend fun assertPublicationSucceeded(message: ExampleMessage) {
+        val publicationId = getPublicationEvent<PublicationEvent.PublicationSucceeded>().publicationId
+        assertEquals((message.message as Message.Published).publicationId, publicationId)
+        assertPublicationChannelClosed()
+    }
+
+    private suspend fun assertPublicationFailed() {
+        getPublicationEvent<PublicationEvent.PublicationFailed>()
+        assertPublicationChannelClosed()
+    }
+
+    private suspend fun assertSubscriptionChannelClosed() = assertChannelClosed(subscriptionEventChannel)
+
+    private suspend fun assertPublicationChannelClosed() = assertChannelClosed(publicationEventChannel)
+
+    private suspend fun assertChannelClosed(channel: ReceiveChannel<*>) {
         withTimeout(1000) { assertEquals(expected = null, actual = channel.receiveOrNull()) }
     }
 }

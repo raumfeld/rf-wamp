@@ -149,7 +149,6 @@ internal sealed class Message {
         }
     }
 
-
     internal data class Publish(
         override val requestId: RequestId,
         val topic: String,
