@@ -66,7 +66,13 @@ class WampSession(
             val argumentsKw: JsonObject?
         ) : Trigger()
 
-        data class Error(val errorType: MessageType, val requestId: RequestId, val wampErrorUri: String) : Trigger()
+        data class Error(
+            val errorType: MessageType,
+            val requestId: RequestId,
+            val wampErrorUri: String,
+            val arguments: JsonArray? = null,
+            val argumentsKw: JsonObject? = null
+        ) : Trigger()
 
         data class Publish(
             val topic: String,
@@ -126,8 +132,8 @@ class WampSession(
 
     suspend fun call(
         procedureId: ProcedureId,
-        arguments: JsonArray = emptyJsonArray(),
-        argumentsKw: JsonObject = emptyJsonObject()
+        arguments: JsonArray? = null,
+        argumentsKw: JsonObject? = null
     ): ReceiveChannel<CallerEvent> =
         Channel<CallerEvent>().also {
             dispatch(Call(procedureId, arguments, argumentsKw, it))
@@ -252,7 +258,13 @@ class WampSession(
             is Yield           -> doYield(trigger.requestId, trigger.arguments, trigger.argumentsKw)
             is Leave           -> sendGoodbye(mustShutdown = false)
             is Shutdown        -> sendGoodbye(mustShutdown = true)
-            is Error           -> sendError(trigger.errorType, trigger.requestId, trigger.wampErrorUri)
+            is Error           -> sendError(
+                trigger.errorType,
+                trigger.requestId,
+                trigger.wampErrorUri,
+                trigger.arguments,
+                trigger.argumentsKw
+            )
             is WebSocketClosed -> onWebSocketClosedPrematurely(trigger.code, trigger.reason)
             is WebSocketFailed -> onWebSocketFailed(trigger.throwable)
             else               -> failTransition(trigger)
@@ -288,8 +300,14 @@ class WampSession(
         send(Message.Call(requestId, procedureId, arguments, argumentsKw))
     }
 
-    private suspend fun sendError(errorType: MessageType, requestId: RequestId, wampErrorUri: String) =
-        send(Message.Error(requestId, errorType, wampErrorUri))
+    private suspend fun sendError(
+        errorType: MessageType,
+        requestId: RequestId,
+        wampErrorUri: String,
+        arguments: JsonArray?,
+        argumentsKw: JsonObject?
+    ) =
+        send(Message.Error(requestId, errorType, wampErrorUri, arguments = arguments, argumentsKw = argumentsKw))
 
     private suspend fun onResultReceived(requestId: RequestId, arguments: JsonArray?, argumentsKw: JsonObject?) {
         val eventChannel = pendingCalls.remove(requestId)
@@ -297,7 +315,7 @@ class WampSession(
             onProtocolViolated("Received RESULT that we have no pending call for. RequestId = $requestId")
             return
         }
-        eventChannel.sendAsync(CallerEvent.Result(arguments, argumentsKw))
+        eventChannel.sendAsync(CallerEvent.Result(arguments, argumentsKw), close = true)
     }
 
     private suspend fun onInvocationReceived(
@@ -319,7 +337,13 @@ class WampSession(
     private suspend fun yieldResult(requestId: RequestId, result: CallerEvent) =
         dispatch(
             when (result) {
-                is CallerEvent.CallFailed -> Error(Message.Invocation.type, requestId, result.errorUri)
+                is CallerEvent.CallFailed -> Error(
+                    Message.Invocation.type,
+                    requestId,
+                    result.errorUri,
+                    result.arguments,
+                    result.argumentsKw
+                )
                 is CallerEvent.Result     -> Yield(requestId, result.arguments, result.argumentsKw)
             }
         )
@@ -616,6 +640,8 @@ class WampSession(
     private fun clearChannels(reason: String) {
         pendingRegistrations.values.forEach { failRegistration(reason, it) }
         pendingRegistrations.clear()
+        pendingUnregistrations.values.map { it.second }.forEach { failUnregistration(reason, it) }
+        pendingUnregistrations.clear()
         registrations.values.forEach { failRegistration(reason, it) }
         registrations.clear()
         pendingSubscriptions.values.forEach { failSubscription(reason, it) }

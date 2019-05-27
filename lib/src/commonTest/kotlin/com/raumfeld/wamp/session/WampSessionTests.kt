@@ -117,8 +117,12 @@ internal class WampSessionTests : BaseSessionTests() {
             // these are just ignored
             SUBSCRIBED2,
             PUBLISHED2,
+            REGISTERED2,
+            UNREGISTERED2,
             UNSUBSCRIBED2,
             EVENT_NO_ARG2,
+            INVOCATION_NO_ARG2,
+            RESULT_NO_ARG2,
             // for these we sent unique protocol violations
             SUBSCRIBED,
             SUBSCRIBE_ERROR,

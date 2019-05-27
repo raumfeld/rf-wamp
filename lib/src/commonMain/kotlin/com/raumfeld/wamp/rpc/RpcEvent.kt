@@ -18,6 +18,6 @@ sealed class CalleeEvent {
 
 sealed class CallerEvent {
     data class Result(val arguments: JsonArray? = null, val argumentsKw: JsonObject? = null) : CallerEvent()
-    data class CallFailed(val errorUri: String) : CallerEvent()
+    data class CallFailed(val errorUri: String, val arguments: JsonArray? = null, val argumentsKw: JsonObject? = null) : CallerEvent()
 }
 

@@ -460,28 +460,9 @@ internal class PubSubTests : BaseSessionTests() {
         return subscriptionId
     }
 
-    private fun failOnSessionAbort(fail: Boolean = true) {
-        every {
-            sessionListener.onSessionAborted(
-                any(),
-                any()
-            )
-        } answers { if (fail) fail("Session was aborted prematurely: $invocation") }
-    }
-
     private suspend inline fun <reified T> getSubscriptionEvent() = getEvent<T>(subscriptionEventChannel)
 
     private suspend inline fun <reified T> getPublicationEvent() = getEvent<T>(publicationEventChannel)
-
-
-    private suspend inline fun <reified T> getEvent(channel: ReceiveChannel<*>) =
-        withTimeout(1000) { channel.receive() } as T
-
-    private fun getEventOrNull(channel: ReceiveChannel<*> = subscriptionEventChannel) = channel.poll()
-
-    private fun mockNextRequestIdWithIdFrom(message: ExampleMessage) {
-        every { mockIdGenerator.newId() } returns (message.message as RequestMessage).requestId
-    }
 
     private suspend fun subscribe(topic: String = (SUBSCRIBE.message as Message.Subscribe).topic) {
         subscriptionEventChannel = session.subscribe(topic)
@@ -498,9 +479,6 @@ internal class PubSubTests : BaseSessionTests() {
     private fun assertNoSubscriptionEvent() = assertNoEvent(subscriptionEventChannel)
 
     private fun assertNoPublicationEvent() = assertNoEvent(publicationEventChannel)
-
-    private fun assertNoEvent(channel: ReceiveChannel<*>) =
-        assertEquals(expected = null, actual = getEventOrNull(channel))
 
     private suspend fun assertSubscriptionFailed() {
         getSubscriptionEvent<SubscriptionFailed>()
@@ -526,8 +504,4 @@ internal class PubSubTests : BaseSessionTests() {
     private suspend fun assertSubscriptionChannelClosed() = assertChannelClosed(subscriptionEventChannel)
 
     private suspend fun assertPublicationChannelClosed() = assertChannelClosed(publicationEventChannel)
-
-    private suspend fun assertChannelClosed(channel: ReceiveChannel<*>) {
-        withTimeout(1000) { assertEquals(expected = null, actual = channel.receiveOrNull()) }
-    }
 }

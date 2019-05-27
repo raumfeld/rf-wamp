@@ -4,13 +4,15 @@ import com.raumfeld.wamp.IdGenerator
 import com.raumfeld.wamp.protocol.ExampleMessage
 import com.raumfeld.wamp.protocol.ExampleMessage.*
 import com.raumfeld.wamp.protocol.Message
+import com.raumfeld.wamp.protocol.RequestMessage
 import com.raumfeld.wamp.protocol.WampClose
 import com.raumfeld.wamp.websocket.WebSocketDelegate
-import io.mockk.clearMocks
-import io.mockk.coVerify
-import io.mockk.mockk
-import io.mockk.verify
+import io.mockk.*
+import kotlinx.coroutines.channels.ReceiveChannel
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.json
+import kotlin.test.assertEquals
+import kotlin.test.fail
 
 internal open class BaseSessionTests {
     companion object {
@@ -70,7 +72,9 @@ internal open class BaseSessionTests {
 
     protected fun verifySessionAborted() = verify(exactly = 1) { sessionListener.onSessionAborted(any(), any()) }
     protected fun verifyRealmJoined() = verify(exactly = 1) { sessionListener.onRealmJoined(realm) }
-    protected fun verifyRealmLeft(fromRouter: Boolean) = verify(exactly = 1) { sessionListener.onRealmLeft(realm, fromRouter) }
+    protected fun verifyRealmLeft(fromRouter: Boolean) =
+        verify(exactly = 1) { sessionListener.onRealmLeft(realm, fromRouter) }
+
     protected fun verifyRealmNotLeft() = verify(exactly = 0) { sessionListener.onRealmLeft(any(), any()) }
     protected fun verifySessionShutdown() = verify(exactly = 1) { sessionListener.onSessionShutdown() }
     protected fun verifySessionNotShutdown() = verify(exactly = 0) { sessionListener.onSessionShutdown() }
@@ -79,4 +83,29 @@ internal open class BaseSessionTests {
     protected fun verifyWebSocketWasNotClosed() = coVerify(exactly = 0) { mockWebSocketDelegate.close(any(), any()) }
     protected fun protocolViolationMessage(message: String) =
         Message.Abort(details = json { "message" to message }, reason = WampClose.PROTOCOL_VIOLATION.content)
+
+    protected suspend fun assertChannelClosed(channel: ReceiveChannel<*>) {
+        withTimeout(1000) { assertEquals(expected = null, actual = channel.receiveOrNull()) }
+    }
+
+    protected fun assertNoEvent(channel: ReceiveChannel<*>) =
+        assertEquals(expected = null, actual = getEventOrNull(channel))
+
+    private fun getEventOrNull(channel: ReceiveChannel<*>) = channel.poll()
+
+    protected suspend inline fun <reified T> getEvent(channel: ReceiveChannel<*>) =
+        withTimeout(1000) { channel.receive() } as T
+
+    protected fun failOnSessionAbort(fail: Boolean = true) {
+        every {
+            sessionListener.onSessionAborted(
+                any(),
+                any()
+            )
+        } answers { if (fail) fail("Session was aborted prematurely: $invocation") }
+    }
+
+    protected fun mockNextRequestIdWithIdFrom(message: ExampleMessage) {
+        every { mockIdGenerator.newId() } returns (message.message as RequestMessage).requestId
+    }
 }

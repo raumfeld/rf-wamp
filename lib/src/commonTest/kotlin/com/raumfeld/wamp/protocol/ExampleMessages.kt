@@ -302,11 +302,25 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
         Message.Register(requestId = 25349185, procedureId = "com.myapp.myprocedure1")
     ),
     /**
+     * [REGISTER, Request|id, Options|dict, Procedure|uri]
+     */
+    REGISTER2(
+        """[64,25349186,{},"com.myapp.myprocedure1"]""",
+        Message.Register(requestId = 25349186, procedureId = "com.myapp.myprocedure1")
+    ),
+    /**
      * [REGISTERED, REGISTER.Request|id, Registration|id]
      */
     REGISTERED(
         """[65,25349185,2103333224]""",
         Message.Registered(requestId = 25349185, registrationId = 2103333224)
+    ),
+    /**
+     * [REGISTERED, REGISTER.Request|id, Registration|id]
+     */
+    REGISTERED2(
+        """[65,25349186,2103333225]""",
+        Message.Registered(requestId = 25349186, registrationId = 2103333225)
     ),
     /**
      * [ERROR, REGISTER, REGISTER.Request|id, Details|dict, Error|uri]
@@ -323,11 +337,25 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
         Message.Unregister(requestId = 788923562, registrationId = 2103333224)
     ),
     /**
+     * [UNREGISTER, Request|id, REGISTERED.Registration|id]
+     */
+    UNREGISTER2(
+        """[66,788923563,2103333225]""",
+        Message.Unregister(requestId = 788923563, registrationId = 2103333225)
+    ),
+    /**
      * [UNREGISTERED, UNREGISTER.Request|id]
      */
     UNREGISTERED(
         """[67,788923562]""",
         Message.Unregistered(requestId = 788923562)
+    ),
+    /**
+     * [UNREGISTERED, UNREGISTER.Request|id]
+     */
+    UNREGISTERED2(
+        """[67,788923563]""",
+        Message.Unregistered(requestId = 788923563)
     ),
     /**
      * [ERROR, UNREGISTER, UNREGISTER.Request|id, Details|dict, Error|uri]
@@ -343,6 +371,15 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
         """[48,7814135,{},"com.myapp.ping"]""",
         Message.Call(
             requestId = 7814135,
+            procedureId = "com.myapp.ping",
+            arguments = null,
+            argumentsKw = null
+        )
+    ),
+    CALL_NO_ARG2(
+        """[48,7814136,{},"com.myapp.ping"]""",
+        Message.Call(
+            requestId = 7814136,
             procedureId = "com.myapp.ping",
             arguments = null,
             argumentsKw = null
@@ -379,10 +416,22 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
      * [INVOCATION, Request|id, REGISTERED.Registration|id, Details|dict]
      */
     INVOCATION_NO_ARG(
-        """[68,6131533,9823526,{}]""",
+        """[68,6131533,2103333224,{}]""",
         Message.Invocation(
             requestId = 6131533,
-            registrationId = 9823526,
+            registrationId = 2103333224,
+            arguments = null,
+            argumentsKw = null
+        )
+    ),
+    /**
+     * [INVOCATION, Request|id, REGISTERED.Registration|id, Details|dict]
+     */
+    INVOCATION_NO_ARG2(
+        """[68,6131534,2103333225,{}]""",
+        Message.Invocation(
+            requestId = 6131534,
+            registrationId = 2103333225,
             arguments = null,
             argumentsKw = null
         )
@@ -391,10 +440,10 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
      * [INVOCATION, Request|id, REGISTERED.Registration|id, Details|dict, CALL.Arguments|list]
      */
     INVOCATION_ONLY_ARRAY_ARG(
-        """[68,6131533,9823527,{},["Hello, world!"]]""",
+        """[68,6131533,2103333224,{},["Hello, world!"]]""",
         Message.Invocation(
             requestId = 6131533,
-            registrationId = 9823527,
+            registrationId = 2103333224,
             arguments = jsonArray { +"Hello, world!" },
             argumentsKw = null
         )
@@ -403,10 +452,10 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
      * [INVOCATION, Request|id, REGISTERED.Registration|id, Details|dict, CALL.Arguments|list, CALL.ArgumentsKw|dict]]
      */
     INVOCATION_FULL_ARGS(
-        """[68,6131533,9823529,{},["johnny"],{"firstname":"John","surname":"Doe"}]""",
+        """[68,6131533,2103333224,{},["johnny"],{"firstname":"John","surname":"Doe"}]""",
         Message.Invocation(
             requestId = 6131533,
-            registrationId = 9823529,
+            registrationId = 2103333224,
             arguments = jsonArray { +"johnny" },
             argumentsKw = json {
                 "firstname" to "John"
@@ -457,6 +506,17 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
         """[50,7814135,{}]""",
         Message.Result(
             requestId = 7814135,
+            arguments = null,
+            argumentsKw = null
+        )
+    ),
+    /**
+     * [RESULT, CALL.Request|id, Details|dict]
+     */
+    RESULT_NO_ARG2(
+        """[50,7814136,{}]""",
+        Message.Result(
+            requestId = 7814136,
             arguments = null,
             argumentsKw = null
         )
