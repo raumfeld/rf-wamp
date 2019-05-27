@@ -123,7 +123,7 @@ internal class WampSessionTests : BaseSessionTests() {
             EVENT_NO_ARG2,
             INVOCATION_NO_ARG2,
             RESULT_NO_ARG2,
-            // for these we sent unique protocol violations
+            // for these we send unique protocol violations
             SUBSCRIBED,
             SUBSCRIBE_ERROR,
             REGISTERED,
