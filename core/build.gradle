@@ -109,3 +109,9 @@ kotlin {
         }
     }
 }
+
+afterEvaluate {
+    tasks.install {
+        dependsOn tasks.getByName("testDebugUnitTest")
+    }
+}
