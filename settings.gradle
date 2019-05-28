@@ -11,6 +11,6 @@ pluginManagement {
     }
 }
 rootProject.name = 'rf-wamp'
-include ':lib'
+include ':lib', ':example-android'
 
 enableFeaturePreview('GRADLE_METADATA')

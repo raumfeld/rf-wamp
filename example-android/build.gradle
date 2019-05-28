@@ -1,7 +1,15 @@
-apply plugin: 'com.android.application'
-apply plugin: 'kotlin-android'
-apply plugin: 'kotlin-android-extensions'
-apply plugin: 'kotlinx-serialization'
+plugins {
+    id 'com.android.application'
+    id 'kotlin-android'
+    id 'kotlin-android-extensions'
+    id 'kotlinx-serialization'
+}
+
+repositories {
+    google()
+    jcenter()
+    maven { url "https://kotlin.bintray.com/kotlinx" }
+}
 
 android {
     compileSdkVersion 28
@@ -22,11 +30,6 @@ android {
     packagingOptions {
         exclude 'META-INF/kotlinx-coroutines-core.kotlin_module'
     }
-}
-
-// don't cache snapshots
-configurations.all {
-    resolutionStrategy.cacheChangingModulesFor 0, 'seconds'
 }
 
 dependencies {
