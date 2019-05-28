@@ -48,5 +48,5 @@ dependencies {
     implementation 'com.chibatching.kotpref:kotpref:2.7.0'
     implementation 'com.chibatching.kotpref:initializer:2.7.0'
 
-    implementation project(':lib')
+    implementation project(':core')
 }
