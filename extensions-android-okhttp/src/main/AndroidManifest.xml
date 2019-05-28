@@ -1,0 +1,3 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.raumfeld.wamp.extensions.android.okhttp">
+    <uses-permission android:name="android.permission.INTERNET" />
+</manifest>

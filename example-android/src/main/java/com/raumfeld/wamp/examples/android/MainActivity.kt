@@ -6,6 +6,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.widget.doAfterTextChanged
 import com.raumfeld.wamp.WampClient
+import com.raumfeld.wamp.extensions.android.okhttp.OkHttpWebSocketFactory
 import com.raumfeld.wamp.protocol.RegistrationId
 import com.raumfeld.wamp.protocol.SubscriptionId
 import com.raumfeld.wamp.pubsub.PublicationEvent
@@ -223,44 +224,5 @@ class MainActivity : AppCompatActivity(), WampSession.WampSessionListener {
 
     override fun onRealmLeft(realm: String, fromRouter: Boolean) {
         toast("Realm '$realm' was left (fromRouter: $fromRouter)")
-    }
-
-    class OkHttpWebSocketDelegate(val webSocket: WebSocket) : WebSocketDelegate {
-        override suspend fun close(code: Int, reason: String?) {
-            webSocket.close(code, reason)
-        }
-
-        override suspend fun send(message: String) {
-            webSocket.send(message)
-        }
-    }
-
-    class OkHttpWebSocketFactory : WebSocketFactory {
-        val WebSocket.delegate get() = OkHttpWebSocketDelegate(this)
-
-        override fun createWebSocket(uri: String, callback: WebSocketCallback) {
-            val request =
-                Request.Builder().url(uri).header("Sec-WebSocket-Protocol", "wamp.2.json").build()
-            OkHttpClient().newWebSocket(request, object : WebSocketListener() {
-                override fun onOpen(webSocket: WebSocket, response: Response) =
-                    runBlocking { callback.onOpen(webSocket.delegate) }
-
-                override fun onMessage(webSocket: WebSocket, text: String) =
-                    runBlocking { callback.onMessage(webSocket.delegate, text) }
-
-                override fun onMessage(webSocket: WebSocket, bytes: ByteString) =
-                    runBlocking { callback.onMessage(webSocket.delegate, bytes.toByteArray()) }
-
-                override fun onClosing(webSocket: WebSocket, code: Int, reason: String) =
-                    runBlocking { callback.onClosing(webSocket.delegate, code, reason) }
-
-                override fun onClosed(webSocket: WebSocket, code: Int, reason: String) =
-                    runBlocking { callback.onClosed(webSocket.delegate, code, reason) }
-
-                override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) =
-                    runBlocking { callback.onFailure(webSocket.delegate, t) }
-            })
-        }
-
     }
 }
