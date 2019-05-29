@@ -1,5 +1,8 @@
 package com.raumfeld.wamp.session
 
+import com.raumfeld.wamp.assertChannelClosed
+import com.raumfeld.wamp.assertNoEvent
+import com.raumfeld.wamp.getEvent
 import com.raumfeld.wamp.protocol.*
 import com.raumfeld.wamp.protocol.ExampleMessage
 import com.raumfeld.wamp.protocol.ExampleMessage.*
@@ -8,16 +11,13 @@ import com.raumfeld.wamp.pubsub.SubscriptionEvent
 import com.raumfeld.wamp.pubsub.SubscriptionEvent.*
 import com.raumfeld.wamp.runTest
 import io.mockk.clearMocks
-import io.mockk.every
 import io.mockk.verify
 import kotlinx.coroutines.channels.ReceiveChannel
-import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.fail
 
 internal class PubSubTests : BaseSessionTests() {
 
@@ -367,8 +367,8 @@ internal class PubSubTests : BaseSessionTests() {
         receiveMessages(PUBLISHED2)
         receiveMessages(PUBLISHED)
 
-        val publicationId1 = getEvent<PublicationEvent.PublicationSucceeded>(channel1).publicationId
-        val publicationId2 = getEvent<PublicationEvent.PublicationSucceeded>(channel3).publicationId
+        val publicationId1 = channel1.getEvent<PublicationEvent.PublicationSucceeded>().publicationId
+        val publicationId2 = channel3.getEvent<PublicationEvent.PublicationSucceeded>().publicationId
 
         assertEquals((PUBLISHED.message as Message.Published).publicationId, publicationId1)
         assertEquals((PUBLISHED2.message as Message.Published).publicationId, publicationId2)
@@ -393,9 +393,9 @@ internal class PubSubTests : BaseSessionTests() {
         receiveMessages(SUBSCRIBED)
 
         receiveMessages(EVENT_FULL_ARGS)
-        val subscriptionId1 = getEvent<SubscriptionEstablished>(channel1).subscriptionId
-        val subscriptionId2 = getEvent<SubscriptionEstablished>(channel2).subscriptionId
-        getEvent<Payload>(channel1).let {
+        val subscriptionId1 = channel1.getEvent<SubscriptionEstablished>().subscriptionId
+        val subscriptionId2 = channel2.getEvent<SubscriptionEstablished>().subscriptionId
+        channel1.getEvent<Payload>().let {
             assertEquals(expected = (EVENT_FULL_ARGS.message as Message.Event).subscriptionId, actual = subscriptionId1)
             assertEquals(expected = EVENT_FULL_ARGS.message.arguments, actual = it.arguments)
             assertEquals(expected = EVENT_FULL_ARGS.message.argumentsKw, actual = it.argumentsKw)
@@ -408,7 +408,7 @@ internal class PubSubTests : BaseSessionTests() {
         assertNoEvent(channel1)
 
         receiveMessages(UNSUBSCRIBED)
-        getEvent<SubscriptionClosed>(channel1)
+        channel1.getEvent<SubscriptionClosed>()
         assertChannelClosed(channel1)
 
         receiveMessages(EVENT_NO_ARG2) // should not affect channel1 in any way
@@ -425,9 +425,9 @@ internal class PubSubTests : BaseSessionTests() {
             assertEquals(expected = EVENT_NO_ARG2.message.argumentsKw, actual = event.argumentsKw)
         }
         // we have unsubscribed, but two events are still pending on channel2 before it gets closed (third one came too late and got ignored)
-        getEvent<Payload>(channel2).let(::assertEvent)
-        getEvent<Payload>(channel2).let(::assertEvent)
-        getEvent<SubscriptionClosed>(channel2)
+        channel2.getEvent<Payload>().let(::assertEvent)
+        channel2.getEvent<Payload>().let(::assertEvent)
+        channel2.getEvent<SubscriptionClosed>()
         assertChannelClosed(channel2)
 
         failOnSessionAbort(false)
@@ -460,9 +460,9 @@ internal class PubSubTests : BaseSessionTests() {
         return subscriptionId
     }
 
-    private suspend inline fun <reified T> getSubscriptionEvent() = getEvent<T>(subscriptionEventChannel)
+    private suspend inline fun <reified T> getSubscriptionEvent() = subscriptionEventChannel.getEvent<T>()
 
-    private suspend inline fun <reified T> getPublicationEvent() = getEvent<T>(publicationEventChannel)
+    private suspend inline fun <reified T> getPublicationEvent() = publicationEventChannel.getEvent<T>()
 
     private suspend fun subscribe(topic: String = (SUBSCRIBE.message as Message.Subscribe).topic) {
         subscriptionEventChannel = session.subscribe(topic)

@@ -31,8 +31,14 @@ class MessageTests {
     fun shouldConvertMessagesCorrectly() {
         val allMessages = ExampleMessage.values()
         allMessages.forEach {
-            expect(it.message) { fromJsonToMessage(it.messageJson) }
+            // both a message with empty and null arguments serializes to "arguments=[]"
+            // but "arguments=[]" never deserializes into arguments=null so we exclude those here
+            if (!it.hasNullArgumentsAndNonNullArgumentsKw())
+                expect(it.message) { fromJsonToMessage(it.messageJson) }
             expect(it.messageJson) { it.message.toJson() }
         }
     }
 }
+
+private fun ExampleMessage.hasNullArgumentsAndNonNullArgumentsKw() =
+    message.toString().contains("arguments=null") // ugly hack >:)

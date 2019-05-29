@@ -80,6 +80,7 @@ kotlin {
                 implementation "io.mockk:mockk:$mockk_version"
                 implementation "org.jetbrains.kotlinx:kotlinx-serialization-runtime:$kotlin_serialization_runtime_version"
                 implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core:$kotlin_coroutines_version"
+                implementation project(":extensions-android-okhttp")
             }
         }
         iosMain {

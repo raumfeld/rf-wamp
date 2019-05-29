@@ -303,4 +303,22 @@ internal class WampSessionTests : BaseSessionTests() {
         verifySessionShutdown()
         verifyWebSocketWasClosed()
     }
+
+    @Test
+    fun shouldIgnoreErrorMessagesWhileInitialOrShutdown() = runTest {
+        joinRealm()
+        receiveWelcome()
+        leaveRealm()
+        receiveGoodbyeAndOut()
+
+        receiveMessages(CALL_ERROR_FULL_ARGS)
+
+        joinRealm()
+        receiveWelcome()
+        shutdownSession()
+        receiveGoodbyeAndOut()
+
+        receiveMessages(CALL_ERROR_FULL_ARGS)
+        verifySessionNotAborted()
+    }
 }

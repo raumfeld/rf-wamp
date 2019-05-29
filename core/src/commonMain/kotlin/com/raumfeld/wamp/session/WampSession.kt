@@ -174,7 +174,11 @@ class WampSession(
 
     private suspend fun evaluateShutdown(trigger: Trigger) =
         when (trigger) {
-            is MessageReceived -> onProtocolViolated("Session is shut down. We cannot process messages.")
+            is MessageReceived ->
+                if (trigger.message !is Message.Error)
+                    onProtocolViolated("Session is shut down. We cannot process messages.")
+                else
+                    Unit // ignore errors
             is WebSocketClosed -> Unit // we caused this ourselves
             is WebSocketFailed -> onWebSocketFailed(trigger.throwable)
             else               -> failTransition(trigger)
@@ -595,7 +599,12 @@ class WampSession(
     }
 
     private suspend fun evaluateInitial(trigger: Trigger) = when (trigger) {
-        is MessageReceived -> onProtocolViolated("Not ready to receive messages yet. Session has not been established.")
+        is MessageReceived -> {
+            if (trigger.message !is Message.Error)
+                onProtocolViolated("Not ready to receive messages yet. Session has not been established.")
+            else
+                Unit // ignore errors
+        }
         is Join            -> sendHello(trigger.realm)
         is WebSocketClosed -> onWebSocketClosedPrematurely(trigger.code, trigger.reason)
         is WebSocketFailed -> onWebSocketFailed(trigger.throwable)

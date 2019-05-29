@@ -71,6 +71,7 @@ internal open class BaseSessionTests {
         verify(exactly = 1) { sessionListener.onSessionAborted(reason, any()) }
 
     protected fun verifySessionAborted() = verify(exactly = 1) { sessionListener.onSessionAborted(any(), any()) }
+    protected fun verifySessionNotAborted() = verify(exactly = 0) { sessionListener.onSessionAborted(any(), any()) }
     protected fun verifyRealmJoined() = verify(exactly = 1) { sessionListener.onRealmJoined(realm) }
     protected fun verifyRealmLeft(fromRouter: Boolean) =
         verify(exactly = 1) { sessionListener.onRealmLeft(realm, fromRouter) }
@@ -83,18 +84,6 @@ internal open class BaseSessionTests {
     protected fun verifyWebSocketWasNotClosed() = coVerify(exactly = 0) { mockWebSocketDelegate.close(any(), any()) }
     protected fun protocolViolationMessage(message: String) =
         Message.Abort(details = json { "message" to message }, reason = WampClose.PROTOCOL_VIOLATION.content)
-
-    protected suspend fun assertChannelClosed(channel: ReceiveChannel<*>) {
-        withTimeout(1000) { assertEquals(expected = null, actual = channel.receiveOrNull()) }
-    }
-
-    protected fun assertNoEvent(channel: ReceiveChannel<*>) =
-        assertEquals(expected = null, actual = getEventOrNull(channel))
-
-    private fun getEventOrNull(channel: ReceiveChannel<*>) = channel.poll()
-
-    protected suspend inline fun <reified T> getEvent(channel: ReceiveChannel<*>) =
-        withTimeout(1000) { channel.receive() } as T
 
     protected fun failOnSessionAbort(fail: Boolean = true) {
         every {

@@ -144,7 +144,7 @@ internal sealed class Message {
             +(requestId as Number)
             +details
             +wampErrorUri
-            arguments?.let { +it }
+            getArguments(arguments, argumentsKw)?.let { +it }
             argumentsKw?.let { +it }
         }
     }
@@ -173,7 +173,7 @@ internal sealed class Message {
             +(requestId as Number)
             +options
             +topic
-            arguments?.let { +it }
+            getArguments(arguments, argumentsKw)?.let { +it }
             argumentsKw?.let { +it }
         }
     }
@@ -284,7 +284,7 @@ internal sealed class Message {
             +(subscriptionId as Number)
             +(publicationId as Number)
             +details
-            arguments?.let { +it }
+            getArguments(arguments, argumentsKw)?.let { +it }
             argumentsKw?.let { +it }
         }
     }
@@ -384,7 +384,7 @@ internal sealed class Message {
             +(requestId as Number)
             +options
             +procedureId
-            arguments?.let { +it }
+            getArguments(arguments, argumentsKw)?.let { +it }
             argumentsKw?.let { +it }
         }
     }
@@ -414,7 +414,7 @@ internal sealed class Message {
             +(requestId as Number)
             +(registrationId as Number)
             +details
-            arguments?.let { +it }
+            getArguments(arguments, argumentsKw)?.let { +it }
             argumentsKw?.let { +it }
         }
     }
@@ -441,7 +441,7 @@ internal sealed class Message {
             +(type as Number)
             +(requestId as Number)
             +options
-            arguments?.let { +it }
+            getArguments(arguments, argumentsKw)?.let { +it }
             argumentsKw?.let { +it }
         }
     }
@@ -468,7 +468,7 @@ internal sealed class Message {
             +(type as Number)
             +(requestId as Number)
             +details
-            arguments?.let { +it }
+            getArguments(arguments, argumentsKw)?.let { +it }
             argumentsKw?.let { +it }
         }
     }
@@ -514,4 +514,8 @@ private fun JsonArray.createMessage(): Message {
     val type = this[0].int
     return MESSAGE_FACTORIES[type]?.create(this) ?: throw IllegalArgumentException("Unknown message type")
 }
+
+private fun getArguments(arguments: JsonArray?, argumentsKw: JsonObject?) =
+    arguments ?: if (argumentsKw != null) emptyJsonArray() else null
+
 

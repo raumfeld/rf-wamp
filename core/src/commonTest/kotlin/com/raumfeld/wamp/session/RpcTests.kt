@@ -1,5 +1,8 @@
 package com.raumfeld.wamp.session
 
+import com.raumfeld.wamp.assertChannelClosed
+import com.raumfeld.wamp.assertNoEvent
+import com.raumfeld.wamp.getEvent
 import com.raumfeld.wamp.protocol.ExampleMessage
 import com.raumfeld.wamp.protocol.ExampleMessage.*
 import com.raumfeld.wamp.protocol.Message
@@ -351,8 +354,8 @@ internal class RpcTests : BaseSessionTests() {
         receiveMessages(RESULT_NO_ARG2)
         receiveMessages(RESULT_NO_ARG)
 
-        val (arguments1, argumentsKw1) = getEvent<CallerEvent.Result>(channel1).let { it.arguments to it.argumentsKw }
-        val (arguments2, argumentsKw2) = getEvent<CallerEvent.Result>(channel2).let { it.arguments to it.argumentsKw }
+        val (arguments1, argumentsKw1) = channel1.getEvent<CallerEvent.Result>().let { it.arguments to it.argumentsKw }
+        val (arguments2, argumentsKw2) = channel2.getEvent<CallerEvent.Result>().let { it.arguments to it.argumentsKw }
 
         assertEquals((RESULT_NO_ARG.message as Message.Result).arguments, arguments1)
         assertEquals(RESULT_NO_ARG.message.argumentsKw, argumentsKw1)
@@ -378,9 +381,9 @@ internal class RpcTests : BaseSessionTests() {
         receiveMessages(REGISTERED)
 
         receiveMessages(INVOCATION_FULL_ARGS)
-        val registrationId1 = getEvent<ProcedureRegistered>(channel1).registrationId
-        val registrationId2 = getEvent<ProcedureRegistered>(channel2).registrationId
-        getEvent<Invocation>(channel1).let {
+        val registrationId1 = channel1.getEvent<ProcedureRegistered>().registrationId
+        val registrationId2 = channel2.getEvent<ProcedureRegistered>().registrationId
+        channel1.getEvent<Invocation>().let {
             assertEquals(
                 expected = (INVOCATION_FULL_ARGS.message as Message.Invocation).registrationId,
                 actual = registrationId1
@@ -396,7 +399,7 @@ internal class RpcTests : BaseSessionTests() {
         assertNoEvent(channel1)
 
         receiveMessages(UNREGISTERED)
-        getEvent<ProcedureUnregistered>(channel1)
+        channel1.getEvent<ProcedureUnregistered>()
         assertChannelClosed(channel1)
 
         receiveMessages(INVOCATION_NO_ARG2) // should not affect channel1 in any way
@@ -416,9 +419,9 @@ internal class RpcTests : BaseSessionTests() {
             assertEquals(expected = INVOCATION_NO_ARG2.message.argumentsKw, actual = event.argumentsKw)
         }
         // we have unregistered, but two invocations are still pending on channel2 before it gets closed (third one came too late and got ignored)
-        getEvent<Invocation>(channel2).let(::assertInvocation)
-        getEvent<Invocation>(channel2).let(::assertInvocation)
-        getEvent<ProcedureUnregistered>(channel2)
+        channel2.getEvent<Invocation>().let(::assertInvocation)
+        channel2.getEvent<Invocation>().let(::assertInvocation)
+        channel2.getEvent<ProcedureUnregistered>()
         assertChannelClosed(channel2)
 
         failOnSessionAbort(false)
@@ -563,8 +566,8 @@ internal class RpcTests : BaseSessionTests() {
         assertCallerChannelClosed()
     }
 
-    private suspend inline fun <reified T> getCalleeEvent() = getEvent<T>(calleeEventChannel)
-    private suspend inline fun <reified T> getCallerEvent() = getEvent<T>(callerEventChannel)
+    private suspend inline fun <reified T> getCalleeEvent() = calleeEventChannel.getEvent<T>()
+    private suspend inline fun <reified T> getCallerEvent() = callerEventChannel.getEvent<T>()
     private fun assertNoCalleeEvent() = assertNoEvent(calleeEventChannel)
     private fun assertNoCallerEvent() = assertNoEvent(callerEventChannel)
     private suspend fun assertCalleeChannelClosed() = assertChannelClosed(calleeEventChannel)

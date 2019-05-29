@@ -215,6 +215,25 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
             options = json { "acknowledge" to true })
     ),
     /**
+     * [PUBLISH, Request|id, Options|dict, Topic|uri, Arguments|list, ArgumentsKw|dict]
+     */
+    PUBLISH_ONLY_KW(
+        """[16,239714735,{"acknowledge":true},"com.myapp.mytopic1",[],{"color":"orange","sizes":[23,42,7]}]""",
+        Message.Publish(
+            requestId = 239714735,
+            topic = "com.myapp.mytopic1",
+            arguments = null,
+            argumentsKw = json {
+                "color" to "orange"
+                "sizes" to jsonArray {
+                    +(23 as Number)
+                    +(42 as Number)
+                    +(7 as Number)
+                }
+            },
+            options = json { "acknowledge" to true })
+    ),
+    /**
      * [PUBLISHED, PUBLISH.Request|id, Publication|id]
      */
     PUBLISHED(
@@ -413,6 +432,21 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
         )
     ),
     /**
+     * [CALL, Request|id, Options|dict, Procedure|uri, Arguments|list, ArgumentsKw|dict]
+     */
+    CALL_ONLY_KW(
+        """[48,7814135,{},"com.myapp.user.new",[],{"firstname":"John","surname":"Doe"}]""",
+        Message.Call(
+            requestId = 7814135,
+            procedureId = "com.myapp.user.new",
+            arguments = null,
+            argumentsKw = json {
+                "firstname" to "John"
+                "surname" to "Doe"
+            }
+        )
+    ),
+    /**
      * [INVOCATION, Request|id, REGISTERED.Registration|id, Details|dict]
      */
     INVOCATION_NO_ARG(
@@ -493,6 +527,20 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
         Message.Yield(
             requestId = 6131533,
             arguments = emptyJsonArray(),
+            argumentsKw = json {
+                "userid" to 123
+                "karma" to 10
+            }
+        )
+    ),
+    /**
+     * [YIELD, INVOCATION.Request|id, Options|dict, Arguments|list, ArgumentsKw|dict]
+     */
+    YIELD_ONLY_KW(
+        """[70,6131533,{},[],{"userid":123,"karma":10}]""",
+        Message.Yield(
+            requestId = 6131533,
+            arguments = null,
             argumentsKw = json {
                 "userid" to 123
                 "karma" to 10
