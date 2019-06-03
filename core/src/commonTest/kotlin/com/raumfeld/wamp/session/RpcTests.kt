@@ -354,8 +354,8 @@ internal class RpcTests : BaseSessionTests() {
         receiveMessages(RESULT_NO_ARG2)
         receiveMessages(RESULT_NO_ARG)
 
-        val (arguments1, argumentsKw1) = channel1.getEvent<CallerEvent.Result>().let { it.arguments to it.argumentsKw }
-        val (arguments2, argumentsKw2) = channel2.getEvent<CallerEvent.Result>().let { it.arguments to it.argumentsKw }
+        val (arguments1, argumentsKw1) = channel1.getEvent<CallerEvent.CallSucceeded>().let { it.arguments to it.argumentsKw }
+        val (arguments2, argumentsKw2) = channel2.getEvent<CallerEvent.CallSucceeded>().let { it.arguments to it.argumentsKw }
 
         assertEquals((RESULT_NO_ARG.message as Message.Result).arguments, arguments1)
         assertEquals(RESULT_NO_ARG.message.argumentsKw, argumentsKw1)
@@ -435,7 +435,7 @@ internal class RpcTests : BaseSessionTests() {
         fastForwardToRegistered()
         receiveMessages(INVOCATION_NO_ARG)
         val returnResult = getCalleeEvent<Invocation>().returnResult
-        returnResult(CallerEvent.Result())
+        returnResult(CallerEvent.CallSucceeded())
         verifyMessagesSent(YIELD_NO_ARG)
     }
 
@@ -444,7 +444,7 @@ internal class RpcTests : BaseSessionTests() {
         fastForwardToRegistered()
         receiveMessages(INVOCATION_ONLY_ARRAY_ARG)
         val returnResult = getCalleeEvent<Invocation>().returnResult
-        returnResult(CallerEvent.Result((YIELD_ONLY_ARRAY_ARG.message as Message.Yield).arguments))
+        returnResult(CallerEvent.CallSucceeded((YIELD_ONLY_ARRAY_ARG.message as Message.Yield).arguments))
         verifyMessagesSent(YIELD_ONLY_ARRAY_ARG)
     }
 
@@ -454,7 +454,7 @@ internal class RpcTests : BaseSessionTests() {
         receiveMessages(INVOCATION_FULL_ARGS)
         val returnResult = getCalleeEvent<Invocation>().returnResult
         returnResult(
-            CallerEvent.Result(
+            CallerEvent.CallSucceeded(
                 (YIELD_FULL_ARGS.message as Message.Yield).arguments,
                 YIELD_FULL_ARGS.message.argumentsKw
             )
@@ -473,7 +473,7 @@ internal class RpcTests : BaseSessionTests() {
         clearMocks(mockWebSocketDelegate)
         clearMocks(sessionListener)
 
-        returnResult(CallerEvent.Result())
+        returnResult(CallerEvent.CallSucceeded())
         verifyNoMessageSent()
         verifySessionAborted()
     }
@@ -573,7 +573,7 @@ internal class RpcTests : BaseSessionTests() {
     private suspend fun assertCalleeChannelClosed() = assertChannelClosed(calleeEventChannel)
     private suspend fun assertCallerChannelClosed() = assertChannelClosed(callerEventChannel)
     private suspend fun assertCallSucceeded(message: ExampleMessage) {
-        val (arguments, argumentsKw) = getCallerEvent<CallerEvent.Result>().let { it.arguments to it.argumentsKw }
+        val (arguments, argumentsKw) = getCallerEvent<CallerEvent.CallSucceeded>().let { it.arguments to it.argumentsKw }
         assertEquals((message.message as Message.Result).arguments, arguments)
         assertEquals(message.message.argumentsKw, argumentsKw)
         assertCallerChannelClosed()

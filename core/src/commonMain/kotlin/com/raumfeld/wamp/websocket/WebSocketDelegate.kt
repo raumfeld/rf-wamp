@@ -1,5 +1,8 @@
 package com.raumfeld.wamp.websocket
 
+/**
+ * Platform-independent WebSocket abstraction
+ */
 interface WebSocketDelegate {
 
     suspend fun send(message: String)

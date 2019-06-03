@@ -2,7 +2,8 @@ package com.raumfeld.wamp.websocket
 
 
 /**
- * Inspired by OkHttp's WebSocketListener
+ * Inspired by OkHttp's WebSocketListener. The callback methods are supposed be called by implementors of [WebSocketFactory]
+ * when corresponding WebSocket events are received.
  */
 interface WebSocketCallback {
     /**

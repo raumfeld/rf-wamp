@@ -29,7 +29,8 @@ class WampClientTests {
     @BeforeTest
     fun setup() {
         MockKAnnotations.init(this)
-        client = WampClient(mockFactory, mockSessionFactory)
+        client = WampClient(mockFactory)
+        client.sessionFactory = mockSessionFactory
         every { mockSessionFactory(any(), any()) } returns mockSession
         every { mockResultCallback.invoke(any()) } just Runs
         captureWebSocketCallback()

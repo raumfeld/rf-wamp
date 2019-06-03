@@ -7,13 +7,26 @@ import com.raumfeld.wamp.websocket.WebSocketFactory
 import kotlin.Result.Companion.failure
 import kotlin.Result.Companion.success
 
-class WampClient(
-    private val socketFactory: WebSocketFactory,
-    private val sessionFactory: (WebSocketDelegate, WampSession.WampSessionListener) -> WampSession =
-        { delegate, listener -> WampSession(delegate, listener) }
-) {
+/**
+ * Entry-point for users of this library. We require users to provide a [WebSocketFactory] because we can't
+ * create them in a platform-agnostic way.
+ */
+class WampClient(private val socketFactory: WebSocketFactory) {
 
-    fun createSession(uri: String, sessionListener: WampSession.WampSessionListener, callback: (Result<WampSession>) -> Unit) {
+    /** Exposed for testing only */
+    internal var sessionFactory: (WebSocketDelegate, WampSession.WampSessionListener) -> WampSession =
+        { delegate, listener -> WampSession(delegate, listener) }
+
+    /**
+     * Establishes a WebSocket connection to the given URI and creates a [WampSession] on success.
+     * Since that is an asynchronous operation and the WebSocket can fail at any time in its lifetime
+     * the result is provided via a callback instead of a direct return value.
+     */
+    fun createSession(
+        uri: String,
+        sessionListener: WampSession.WampSessionListener,
+        callback: (Result<WampSession>) -> Unit
+    ) {
         socketFactory.createWebSocket(uri, object : WebSocketCallback {
 
             private var session: WampSession? = null

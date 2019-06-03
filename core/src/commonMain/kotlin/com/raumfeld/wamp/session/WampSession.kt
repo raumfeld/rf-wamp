@@ -22,6 +22,10 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.json
 
+/**
+ * The WAMP session abstraction. Clients need to provide a [WebSocketDelegate] so we can operate on WebSockets on multiple platforms.
+ * The given [WampSessionListener] is notified when important lifecycle events occur.
+ */
 class WampSession(
     private val webSocketDelegate: WebSocketDelegate,
     private val sessionListener: WampSessionListener? = null,
@@ -29,9 +33,28 @@ class WampSession(
 ) {
 
     interface WampSessionListener {
+        /**
+         * Joining the specified realm was successful. Clients can now use the session to make various WAMP related things
+         * like pub/sub and RPC.
+         */
         fun onRealmJoined(realm: String)
+
+        /**
+         * The realm has been left successfully. The only thing that can be done afterwards is joining a realm or shutting the session down.
+         * Everything else will lead to an aborted session.
+         *
+         * @param fromRouter `
+         */
         fun onRealmLeft(realm: String, fromRouter: Boolean)
+
+        /** The session was closed normally and is now in a terminal state. Using it (for example joining a realm)
+         * will always lead to [onSessionAborted] being called. */
         fun onSessionShutdown()
+
+        /**
+         * The session was closed abnormally, either due to unexpected API usage (e.g. leaving a realm before joining a realm)
+         * or due to unexpected messages from the WAMP router. The session is in a terminal state afterwards.
+         * Using it (for example joining a realm) will always lead to [onSessionAborted] being called. */
         fun onSessionAborted(reason: String, throwable: Throwable?)
     }
 
@@ -89,7 +112,7 @@ class WampSession(
     }
 
     private val mutex = Mutex()
-    // INTERNAL STATE MUST ONLY BE MUTATED FROM INSIDE OUR CONTEXT
+    // INTERNAL STATE MUST ONLY BE MUTATED WHEN ABOVE MUTEX IS LOCKED
     private var realm: String? = null
     private var state = INITIAL
     private val pendingSubscriptions = mutableMapOf<RequestId, SendChannel<SubscriptionEvent>>()
@@ -101,19 +124,62 @@ class WampSession(
     private val pendingCalls = mutableMapOf<RequestId, SendChannel<CallerEvent>>()
     private val pendingPublications = mutableMapOf<RequestId, SendChannel<PublicationEvent>>()
 
+    /**
+     * Joins the given WAMP realm. Suspends until the message has been passed to the WebSocket.
+     * Note: It can take some time before the actual operation has been performed by the router.
+     * Implement [WampSessionListener.onRealmJoined] if you want to know when that has happened.
+     *
+     * If this session is not in the initial state (i.e. directly after it has been created OR after leaving a realm) this will
+     * abort the session.
+     */
     suspend fun join(realm: String): Unit = dispatch(Join(realm))
 
+    /**
+     * Leaves the currently joined WAMP realm. Suspends until the message has been passed to the WebSocket.
+     * Note: It can take some time before the actual operation has been performed by the router.
+     * Implement [WampSessionListener.onRealmLeft] if you want to know when that has happened.
+     *
+     * This call leaves the WebSocket open so you can call [join] again once [WampSessionListener.onRealmLeft]
+     * has been called to join a new realm.
+     *
+     * If this session has not joined a realm yet this will
+     * abort the session.
+     */
     suspend fun leave(): Unit = dispatch(Leave)
 
+    /**
+     * Same as [leave] but you will not be able to join another realm. The session becomes unusable after shutdown, the WebSocket
+     * is closed.
+     * Implement [WampSessionListener.onSessionShutdown] if you want to know when shutdown has been acknowledged by the router.
+     *
+     * Note: Calling this will also notify [WampSessionListener.onRealmLeft]
+     */
     suspend fun shutdown(): Unit = dispatch(Shutdown)
 
+    /**
+     * Subscribe to the given topic. Suspends until the message has been passed to the WebSocket.
+     * Note: The subscription needs to be acknowledged by the router, which can take some time.
+     * Use the returned [ReceiveChannel] to process all related [SubscriptionEvent]s.
+     */
     suspend fun subscribe(topic: String): ReceiveChannel<SubscriptionEvent> =
         Channel<SubscriptionEvent>().also {
             dispatch(Subscribe(topic, it))
         }
 
+    /**
+     * Unsubscribe from the given [SubscriptionId]. Suspends until the message has been passed to the WebSocket.
+     * Note: The unsubscription needs to be acknowledged by the router, which can take some time.
+     * Events related to this unsubscription are sent to the channel you got via [subscribe].
+     */
     suspend fun unsubscribe(subscriptionId: SubscriptionId) = dispatch(Unsubscribe(subscriptionId))
 
+    /**
+     * Publish something to the given topic. Suspends until the message has been passed to the WebSocket.
+     * By default these events are not acknowledged. Set [acknowledge] to `true` if you want acknowledgements.
+     *
+     * If [acknowledge] is `true` you can use the returned [ReceiveChannel] to find out if the event has been published or not.
+     * If it is `false` the channel will be closed immediately after sending the event to the broker.
+     */
     suspend fun publish(
         topic: String,
         arguments: JsonArray? = null,
@@ -123,13 +189,29 @@ class WampSession(
         dispatch(Publish(topic, arguments, argumentsKw, acknowledge, it))
     }
 
+    /**
+     * Register a procedure with the dealer. Suspends until the message has been passed to the WebSocket.
+     * Note: The registration needs to be acknowledged by the router, which can take some time.
+     * Use the returned [ReceiveChannel] to process all related [CalleeEvent]s.
+     *
+     * *Attention*: Make sure to always call the [CalleeEvent.Invocation.returnResult] lambda when handling invocations.
+     */
     suspend fun register(procedureId: ProcedureId): ReceiveChannel<CalleeEvent> =
         Channel<CalleeEvent>().also {
             dispatch(Register(procedureId, it))
         }
 
+    /**
+     * Unregister the given [RegistrationId]. Suspends until the message has been passed to the WebSocket.
+     * Note: The unregistration needs to be acknowledged by the router, which can take some time.
+     * Events related to this unregistration are sent to the channel you got via [register].
+     */
     suspend fun unregister(registrationId: RegistrationId): Unit = dispatch(Unregister(registrationId))
 
+    /**
+     * Call a remote procedure. Suspends until the message has been passed to the WebSocket.
+     * Use the returned [ReceiveChannel] to process all related [CallerEvent]s.
+     */
     suspend fun call(
         procedureId: ProcedureId,
         arguments: JsonArray? = null,
@@ -181,6 +263,7 @@ class WampSession(
                     Unit // ignore errors
             is WebSocketClosed -> Unit // we caused this ourselves
             is WebSocketFailed -> onWebSocketFailed(trigger.throwable)
+            is Shutdown        -> Unit // already shutdown
             else               -> failTransition(trigger)
         }
 
@@ -199,7 +282,7 @@ class WampSession(
     private suspend fun evaluatedAborted(trigger: Trigger) =
         when (trigger) {
             is WebSocketClosed, is WebSocketFailed -> Unit // we don't even care anymore!
-            is MessageReceived                     -> onProtocolViolated("Session is aborted. We cannot process messages.")
+            is Shutdown                            -> Unit // ignore this
             else                                   -> failTransition(trigger)
         }
 
@@ -319,7 +402,7 @@ class WampSession(
             onProtocolViolated("Received RESULT that we have no pending call for. RequestId = $requestId")
             return
         }
-        eventChannel.sendAsync(CallerEvent.Result(arguments, argumentsKw), close = true)
+        eventChannel.sendAsync(CallerEvent.CallSucceeded(arguments, argumentsKw), close = true)
     }
 
     private suspend fun onInvocationReceived(
@@ -348,7 +431,7 @@ class WampSession(
                     result.arguments,
                     result.argumentsKw
                 )
-                is CallerEvent.Result     -> Yield(requestId, result.arguments, result.argumentsKw)
+                is CallerEvent.CallSucceeded -> Yield(requestId, result.arguments, result.argumentsKw)
             }
         )
 
@@ -571,8 +654,7 @@ class WampSession(
         state = if (!mustShutdown) INITIAL else SHUT_DOWN
         notifyRealmLeft(fromRouter = false)
         if (mustShutdown) {
-            sessionListener?.onSessionShutdown()
-            closeWebSocket()
+            doShutdown()
         }
     }
 
@@ -586,10 +668,14 @@ class WampSession(
         val message = Message.Goodbye(reason = WampClose.GOODBYE_AND_OUT.content)
         send(message)
         notifyRealmLeft(fromRouter = true)
-        if (mustShutdown) {
-            sessionListener?.onSessionShutdown()
-            closeWebSocket()
-        }
+        if (mustShutdown)
+            doShutdown()
+    }
+
+    private suspend fun doShutdown() {
+        state = SHUT_DOWN
+        sessionListener?.onSessionShutdown()
+        closeWebSocket()
     }
 
     private suspend fun onAbort(reason: String, throwable: Throwable? = null) {
@@ -608,6 +694,7 @@ class WampSession(
         is Join            -> sendHello(trigger.realm)
         is WebSocketClosed -> onWebSocketClosedPrematurely(trigger.code, trigger.reason)
         is WebSocketFailed -> onWebSocketFailed(trigger.throwable)
+        is Shutdown        -> doShutdown()
         else               -> failTransition(trigger)
     }
 

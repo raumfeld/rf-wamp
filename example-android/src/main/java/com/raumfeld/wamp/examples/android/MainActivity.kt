@@ -14,18 +14,12 @@ import com.raumfeld.wamp.pubsub.SubscriptionEvent.*
 import com.raumfeld.wamp.rpc.CalleeEvent
 import com.raumfeld.wamp.rpc.CallerEvent
 import com.raumfeld.wamp.session.WampSession
-import com.raumfeld.wamp.websocket.WebSocketCallback
-import com.raumfeld.wamp.websocket.WebSocketDelegate
-import com.raumfeld.wamp.websocket.WebSocketFactory
 import kotlinx.android.synthetic.main.activity_main.*
 import kotlinx.coroutines.Dispatchers.Main
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.channels.consumeEach
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.jsonArray
-import okhttp3.*
-import okio.ByteString
 
 class MainActivity : AppCompatActivity(), WampSession.WampSessionListener {
     companion object {
@@ -62,8 +56,8 @@ class MainActivity : AppCompatActivity(), WampSession.WampSessionListener {
                         ?: return@launch
                 channel.consumeEach {
                     when (it) {
-                        is CallerEvent.Result     -> toast("Call returned: ${it.arguments}\n${it.argumentsKw}")
-                        is CallerEvent.CallFailed -> toast("Call failed: ${it.errorUri}")
+                        is CallerEvent.CallSucceeded -> toast("Call returned: ${it.arguments}\n${it.argumentsKw}")
+                        is CallerEvent.CallFailed    -> toast("Call failed: ${it.errorUri}")
                     }
                 }
             }
@@ -91,7 +85,7 @@ class MainActivity : AppCompatActivity(), WampSession.WampSessionListener {
                                 "Received invocation: ${it.arguments}\n" +
                                         "${it.argumentsKw}\nReturning $result"
                             )
-                            it.returnResult(CallerEvent.Result(result))
+                            it.returnResult(CallerEvent.CallSucceeded(result))
                         }
                         is CalleeEvent.ProcedureUnregistered -> toast("We have unregistered")
                         is CalleeEvent.RegistrationFailed    -> toast("Procedure registration failed with: ${it.errorUri}")

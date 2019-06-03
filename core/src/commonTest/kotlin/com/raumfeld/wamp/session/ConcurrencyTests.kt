@@ -112,10 +112,10 @@ internal class ConcurrencyTests {
             repeat(NUMBER_OF_CLIENTS - 1) {
                 val invocation = registrationChannel1.getEvent<Invocation>()
                 delayRandomly()
-                invocation.returnResult(CallerEvent.Result(invocation.arguments, invocation.argumentsKw))
+                invocation.returnResult(CallerEvent.CallSucceeded(invocation.arguments, invocation.argumentsKw))
             }
             resultChannels.forEach {
-                val result = it.getEvent<CallerEvent.Result>()
+                val result = it.getEvent<CallerEvent.CallSucceeded>()
                 delayRandomly()
                 assertEquals(arguments, result.arguments)
                 assertEquals(argumentsKw, result.argumentsKw)
@@ -132,7 +132,7 @@ internal class ConcurrencyTests {
         }
     }
 
-    private fun makeProcedureName(index: Int) = "client-$index.procedure"
+    private fun makeProcedureName(index: Int) = "client_$index.procedure"
 
     class FailOnAbortSessionListener(val onJoined: CompletableDeferred<Unit>) :
         WampSession.WampSessionListener {

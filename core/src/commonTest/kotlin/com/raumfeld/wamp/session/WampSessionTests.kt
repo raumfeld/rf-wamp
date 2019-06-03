@@ -332,4 +332,61 @@ internal class WampSessionTests : BaseSessionTests() {
         verifySessionAborted()
         verifyWebSocketWasClosed()
     }
+
+    @Test
+    fun shouldShutdownAfterLeaving() = runTest {
+        joinRealm()
+        receiveWelcome()
+        leaveRealm()
+        receiveGoodbyeAndOut()
+
+        clearMocks(mockWebSocketDelegate)
+        clearMocks(sessionListener)
+
+        shutdownSession()
+
+        verifyNoMessageSent()
+        verifySessionShutdown()
+        verifySessionNotAborted()
+        verifyWebSocketWasClosed()
+    }
+
+    @Test
+    fun shouldIgnoreShutdownAfterShutdown() = runTest {
+        shutdownSession()
+        clearMocks(sessionListener)
+        clearMocks(mockWebSocketDelegate)
+        shutdownSession()
+
+        verifyNoMessageSent()
+        verifySessionNotShutdown()
+        verifySessionNotAborted()
+        verifyWebSocketWasNotClosed()
+    }
+
+    @Test
+    fun shouldIgnoreShutdownWhenAborted() = runTest {
+        joinRealm()
+        shutdownSession() // this will lead to an abort
+        clearMocks(sessionListener)
+        clearMocks(mockWebSocketDelegate)
+        shutdownSession()
+
+        verifyNoMessageSent()
+        verifySessionNotShutdown()
+        verifySessionNotAborted()
+        verifyWebSocketWasNotClosed()
+    }
+
+    @Test
+    fun shouldNotSendMessageAfterAborted() = runTest {
+        joinRealm()
+        shutdownSession() // this will lead to an abort
+        clearMocks(sessionListener)
+        clearMocks(mockWebSocketDelegate)
+        receiveWelcome()
+
+        verifyNoMessageSent()
+        verifySessionAborted()
+    }
 }

@@ -17,9 +17,13 @@ fun assertNoEvent(channel: ReceiveChannel<*>) =
 
 private fun ReceiveChannel<*>.getEventOrNull() = poll()
 
-suspend inline fun <reified T> ReceiveChannel<*>.getEvent(timeout: Long = 1000L) =
+suspend inline fun <reified T> ReceiveChannel<*>.getEvent(timeout: Long = 1000L): T {
+    var actualEvent: Any? = null
     try {
-        withTimeout(timeout) { receive() } as T
+        return withTimeout(timeout) { receive().also { actualEvent = it } } as T
     } catch (e: TimeoutCancellationException) {
         fail("Timeout while waiting for event: ${T::class}")
+    } catch (e: ClassCastException) {
+        fail("Did not receive expected event. Expected ${T::class} but was: $actualEvent")
     }
+}
