@@ -321,4 +321,15 @@ internal class WampSessionTests : BaseSessionTests() {
         receiveMessages(CALL_ERROR_FULL_ARGS)
         verifySessionNotAborted()
     }
+
+    @Test
+    fun shouldAbortOnBinaryMessage() = runTest {
+        joinRealm()
+        receiveWelcome()
+
+        session.onBinaryMessageReceived()
+
+        verifySessionAborted()
+        verifyWebSocketWasClosed()
+    }
 }
