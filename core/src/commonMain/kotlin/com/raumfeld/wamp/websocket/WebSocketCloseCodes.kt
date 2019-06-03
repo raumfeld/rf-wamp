@@ -1,6 +1,6 @@
 package com.raumfeld.wamp.websocket
 
 object WebSocketCloseCodes {
-    const val GOING_AWAY = 1001
-    const val PROTOCOL_ERROR = 1002
+    const val NORMAL_CLOSURE = 1000
+    const val PROTOCOL_ERROR = 3002
 }

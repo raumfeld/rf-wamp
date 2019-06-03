@@ -595,7 +595,7 @@ class WampSession(
     private suspend fun onAbort(reason: String, throwable: Throwable? = null) {
         state = ABORTED
         notifySessionAbort(reason, throwable)
-        webSocketDelegate.close(WebSocketCloseCodes.GOING_AWAY, "ABORT")
+        webSocketDelegate.close(WebSocketCloseCodes.NORMAL_CLOSURE, "ABORT")
     }
 
     private suspend fun evaluateInitial(trigger: Trigger) = when (trigger) {
@@ -665,7 +665,7 @@ class WampSession(
         pendingPublications.clear()
     }
 
-    private suspend fun closeWebSocket() = webSocketDelegate.close(WebSocketCloseCodes.GOING_AWAY, "Session closed")
+    private suspend fun closeWebSocket() = webSocketDelegate.close(WebSocketCloseCodes.NORMAL_CLOSURE, "Session closed")
 
     private suspend fun sendHello(realm: String) {
         state = JOINING
