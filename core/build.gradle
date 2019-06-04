@@ -11,12 +11,11 @@ repositories {
     maven { url "https://kotlin.bintray.com/kotlinx" }
 }
 
-group 'com.github.raumfeld'
-version '0.0.1'
+group 'com.github.raumfeld.rf-wamp'
 
 android {
-    compileSdkVersion 28
-    buildToolsVersion("28.0.3")
+    compileSdkVersion compile_sdk_version
+    buildToolsVersion(build_tools_version)
 
     sourceSets {
         main {
@@ -24,7 +23,7 @@ android {
         }
 
         test {
-            setRoot("src/AndroidTest")
+            setRoot("src/androidTest")
         }
     }
 }
@@ -63,6 +62,7 @@ kotlin {
             dependencies {
                 implementation kotlin('stdlib')
                 implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core:$kotlin_coroutines_version"
+                api "org.jetbrains.kotlinx:kotlinx-serialization-runtime:0.11.0"
             }
         }
         jvmMain {
@@ -113,6 +113,6 @@ kotlin {
 
 afterEvaluate {
     tasks.install {
-        dependsOn tasks.getByName("testDebugUnitTest")
+        dependsOn tasks.getByName("testReleaseUnitTest")
     }
 }

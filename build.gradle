@@ -3,6 +3,10 @@ buildscript {
     ext.kotlin_coroutines_version = '1.2.1'
     ext.kotlin_serialization_runtime_version = '0.11.0'
     ext.mockk_version = '1.9.3'
+    ext.compile_sdk_version = 28
+    ext.target_sdk_version = 28
+    ext.min_sdk_version = 21
+    ext.build_tools_version = '28.0.3'
     repositories {
         google()
         jcenter()
