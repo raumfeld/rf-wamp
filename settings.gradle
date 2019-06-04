@@ -12,5 +12,3 @@ pluginManagement {
 }
 rootProject.name = 'rf-wamp'
 include ':core', ':extensions-android-okhttp', ':example-android'
-
-enableFeaturePreview('GRADLE_METADATA')
