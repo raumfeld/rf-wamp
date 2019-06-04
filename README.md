@@ -116,14 +116,14 @@ suspend fun registerFunction() {
     val registration = session?.register("myfunction") ?: return
     registration.consumeEach {
         when (it) {
-            is ProcedureRegistered -> println("Procedure registered successfully! RegistrationId = ${it.registrationId}")
-            is Invocation -> {
+            is ProcedureRegistered  -> println("Procedure registered successfully! RegistrationId = ${it.registrationId}")
+            is Invocation           -> {
                 println("Someone wants to call us. Arguments = ${it.arguments} ArgumentsKw = ${it.argumentsKw}")
                 // don't forget to actually respond!
                 it.returnResult(CallSucceeded(arguments = jsonArray { +"It worked!" }))
             }
-            ProcedureUnregistered -> println("Procedure unregistered successfully!")
-            is RegistrationFailed -> println("Registration failed with ${it.errorUri}")
+            ProcedureUnregistered   -> println("Procedure unregistered successfully!")
+            is RegistrationFailed   -> println("Registration failed with ${it.errorUri}")
             is UnregistrationFailed -> println("Unregisration failed with ${it.errorUri}")
         }
     }
