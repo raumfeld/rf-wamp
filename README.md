@@ -16,7 +16,7 @@ repositories {
 
 This contains just the core library. You will have to provide your own [WebSocketFactory](core/src/commonMain/kotlin/com/raumfeld/wamp/websocket/WebSocketFactory.kt) and [WebSocketDelegate](core/src/commonMain/kotlin/com/raumfeld/wamp/websocket/WebSocketDelegate.kt). 
 ```groovy
-implementation 'com.github.raumfeld.rf-wamp:core:VERSION@aar'
+implementation 'com.github.raumfeld.rf-wamp:core-metadata:VERSION@aar'
 ```
 ### Android OkHttpExtensions
 
