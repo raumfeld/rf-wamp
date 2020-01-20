@@ -1,14 +1,11 @@
-plugins {
-    id 'kotlin-multiplatform' 
-    id 'kotlinx-serialization' 
-    id 'com.android.library'
-    id 'com.github.dcendents.android-maven'
-}
+apply plugin: 'kotlin-multiplatform'
+apply plugin: 'kotlinx-serialization'
+apply plugin: 'com.android.library'
+apply plugin: 'com.github.dcendents.android-maven'
 
 repositories {
     google()
     jcenter()
-    maven { url "https://kotlin.bintray.com/kotlinx" }
 }
 
 group 'com.github.raumfeld.rf-wamp'
@@ -45,7 +42,7 @@ kotlin {
         commonMain {
             dependencies {
                 implementation kotlin('stdlib-common')
-                implementation "org.jetbrains.kotlinx:kotlinx-serialization-runtime:$kotlin_serialization_runtime_version"
+                implementation "org.jetbrains.kotlinx:kotlinx-serialization-runtime-common:$kotlin_serialization_runtime_version"
                 implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core-common:$kotlin_coroutines_version"
             }
         }
@@ -62,7 +59,7 @@ kotlin {
             dependencies {
                 implementation kotlin('stdlib')
                 implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core:$kotlin_coroutines_version"
-                api "org.jetbrains.kotlinx:kotlinx-serialization-runtime:0.11.0"
+                api "org.jetbrains.kotlinx:kotlinx-serialization-runtime:$kotlin_serialization_runtime_version"
             }
         }
         jvmMain {
@@ -105,6 +102,7 @@ kotlin {
                 freeCompilerArgs = [
                         '-Xuse-experimental=kotlinx.coroutines.ExperimentalCoroutinesApi',
                         '-Xuse-experimental=kotlinx.coroutines.ObsoleteCoroutinesApi',
+                        '-Xuse-experimental=kotlinx.serialization.UnstableDefault',
                         '-Xallow-result-return-type']
             }
         }
