@@ -26,15 +26,6 @@ If you don't want to implement your own WebSocket delegates, you can also just u
 implementation 'com.github.raumfeld.rf-wamp:extensions-android-okhttp:VERSION@aar'
 ```
 
-*Note:* You will also need to add the following due to OkHttp's use of [Static interface methods](https://github.com/square/okhttp/issues/4668)
-
-```groovy
-compileOptions {
-       sourceCompatibility JavaVersion.VERSION_1_7 // set to 8 if you want to actually code against Java 8 stuff (not needed if you only use Kotlin)
-       targetCompatibility JavaVersion.VERSION_1_8 // needed for newer OkHttp versions
-}
-```
-
 ## Examples
 
 Check out this runnable example to see rf-wamp in action: [Example App](example-android/src/main/java/com/raumfeld/wamp/examples/android/MainActivity.kt).
