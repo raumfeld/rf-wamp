@@ -16,7 +16,7 @@ repositories {
 
 This contains just the core library. You will have to provide your own [WebSocketFactory](core/src/commonMain/kotlin/com/raumfeld/wamp/websocket/WebSocketFactory.kt) and [WebSocketDelegate](core/src/commonMain/kotlin/com/raumfeld/wamp/websocket/WebSocketDelegate.kt). 
 ```groovy
-implementation 'com.github.raumfeld.rf-wamp:core:VERSION@aar'
+implementation 'com.github.raumfeld.rf-wamp:core-metadata:VERSION@aar'
 ```
 ### Android OkHttpExtensions
 
@@ -24,15 +24,6 @@ If you don't want to implement your own WebSocket delegates, you can also just u
 
 ```groovy
 implementation 'com.github.raumfeld.rf-wamp:extensions-android-okhttp:VERSION@aar'
-```
-
-*Note:* You will also need to add the following due to OkHttp's use of [Static interface methods](https://github.com/square/okhttp/issues/4668)
-
-```groovy
-compileOptions {
-       sourceCompatibility JavaVersion.VERSION_1_7 // set to 8 if you want to actually code against Java 8 stuff (not needed if you only use Kotlin)
-       targetCompatibility JavaVersion.VERSION_1_8 // needed for newer OkHttp versions
-}
 ```
 
 ## Examples

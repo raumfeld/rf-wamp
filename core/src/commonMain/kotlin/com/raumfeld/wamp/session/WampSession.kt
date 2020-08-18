@@ -18,9 +18,7 @@ import kotlinx.coroutines.channels.SendChannel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.json
+import kotlinx.serialization.json.*
 
 /**
  * The WAMP session abstraction. Clients need to provide a [WebSocketDelegate] so we can operate on WebSockets on multiple platforms.
@@ -462,7 +460,10 @@ class WampSession(
                 topic = topic,
                 arguments = arguments,
                 argumentsKw = argumentsKw,
-                options = if (acknowledge) json { "acknowledge" to true } else emptyJsonObject()))
+                options = if (acknowledge) buildJsonObject { put(
+                    "acknowledge",
+                    true
+                ) } else emptyJsonObject()))
 
         if (!acknowledge)
             eventChannel.close()
@@ -719,8 +720,8 @@ class WampSession(
         state = ABORTED
         notifySessionAbort(reason.content + (message?.let { " : $it" } ?: ""), null)
         val details = message?.let {
-            json {
-                "message" to it
+            buildJsonObject {
+                put("message", it)
             }
         } ?: emptyJsonObject()
         val abortMessage = Message.Abort(reason = reason.content, details = details)
@@ -752,19 +753,20 @@ class WampSession(
         pendingPublications.clear()
     }
 
-    private suspend fun closeWebSocket() = webSocketDelegate.close(WebSocketCloseCodes.NORMAL_CLOSURE, "Session closed")
+    private suspend fun closeWebSocket() =
+        webSocketDelegate.close(WebSocketCloseCodes.NORMAL_CLOSURE, "Session closed")
 
     private suspend fun sendHello(realm: String) {
         state = JOINING
         this.realm = realm
         val message = Message.Hello(
-            realm, json {
-                "roles" to json {
-                    "publisher" to emptyJsonObject()
-                    "subscriber" to emptyJsonObject()
-                    "caller" to emptyJsonObject()
-                    "callee" to emptyJsonObject()
-                }
+            realm, buildJsonObject {
+                put("roles", buildJsonObject {
+                    put("publisher", emptyJsonObject())
+                    put("subscriber", emptyJsonObject())
+                    put("caller", emptyJsonObject())
+                    put("callee", emptyJsonObject())
+                })
             }
         )
         send(message)

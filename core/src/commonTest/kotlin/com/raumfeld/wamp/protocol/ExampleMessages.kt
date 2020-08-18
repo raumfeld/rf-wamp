@@ -1,7 +1,6 @@
 package com.raumfeld.wamp.protocol
 
-import kotlinx.serialization.json.json
-import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.*
 
 /**
  * The examples are taken from https://wamp-proto.org/_static/gen/wamp_latest.html#messages
@@ -12,29 +11,39 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
      */
     HELLO(
         """[1,"somerealm",{"roles":{"publisher":{},"subscriber":{},"caller":{},"callee":{}}}]""",
-        Message.Hello("somerealm", json {
-            "roles" to json {
-                "publisher" to emptyJsonObject()
-                "subscriber" to emptyJsonObject()
-                "caller" to emptyJsonObject()
-                "callee" to emptyJsonObject()
-            }
+        Message.Hello("somerealm", buildJsonObject {
+            put("roles", buildJsonObject {
+                put("publisher", emptyJsonObject())
+                put("subscriber", emptyJsonObject())
+                put("caller", emptyJsonObject())
+                put("callee", emptyJsonObject())
+            })
         })
     ),
+
     /**
      * [WELCOME, Session|id, Details|dict]
      */
     WELCOME(
         """[2,9129137332,{"roles":{"broker":{}}}]""",
-        Message.Welcome(9129137332, json { "roles" to json { "broker" to emptyJsonObject() } })
+        Message.Welcome(9129137332, buildJsonObject {
+            put(
+                "roles",
+                buildJsonObject { put("broker", emptyJsonObject()) })
+        })
     ),
+
     /**
      * [ABORT, Details|dict, Reason|uri]
      */
     ABORT_REALM_DOES_NOT_EXIST(
         """[3,{"message":"The realm does not exist."},"wamp.error.no_such_realm"]""",
-        Message.Abort(json { "message" to "The realm does not exist." }, "wamp.error.no_such_realm")
+        Message.Abort(
+            buildJsonObject { put("message", "The realm does not exist.") },
+            "wamp.error.no_such_realm"
+        )
     ),
+
     /**
      * [ABORT, Details|dict, Reason|uri]
      */
@@ -42,6 +51,7 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
         """[3,{},"wamp.close.system_shutdown"]""",
         Message.Abort(reason = "wamp.close.system_shutdown")
     ),
+
     /**
      * [ABORT, Details|dict, Reason|uri]
      */
@@ -49,33 +59,55 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
         """[3,{},"wamp.error.protocol_violation"]""",
         Message.Abort(reason = "wamp.error.protocol_violation")
     ),
+
     /**
      * [ABORT, Details|dict, Reason|uri]
      */
     ABORT_PROTOCOL_VIOLATION_AFTER_HELLO(
         """[3,{"message":"Illegal message received. Expected 'Welcome' or 'Abort'."},"wamp.error.protocol_violation"]""",
         Message.Abort(
-            details = json { "message" to "Illegal message received. Expected 'Welcome' or 'Abort'." },
+            details = buildJsonObject {
+                put(
+                    "message",
+                    "Illegal message received. Expected 'Welcome' or 'Abort'."
+                )
+            },
             reason = "wamp.error.protocol_violation"
         )
     ),
+
     /**
      * [ABORT, Details|dict, Reason|uri]
      */
     ABORT_PROTOCOL_VIOLATION_UNEXPECTED_MESSAGE(
         """[3,{"message":"Received unexpected message."},"wamp.error.protocol_violation"]""",
         Message.Abort(
-            details = json { "message" to "Received unexpected message." },
+            details = buildJsonObject {
+                put(
+                    "message",
+                    "Received unexpected message."
+                )
+            },
             reason = "wamp.error.protocol_violation"
         )
     ),
+
     /**
      * [GOODBYE, Details|dict, Reason|uri]
      */
     GOODBYE_SHUTDOWN_WITH_MESSAGE(
         """[6,{"message":"The host is shutting down now."},"wamp.close.system_shutdown"]""",
-        Message.Goodbye(json { "message" to "The host is shutting down now." }, "wamp.close.system_shutdown")
+        Message.Goodbye(
+            buildJsonObject {
+                put(
+                    "message",
+                    "The host is shutting down now."
+                )
+            },
+            "wamp.close.system_shutdown"
+        )
     ),
+
     /**
      * [GOODBYE, Details|dict, Reason|uri]
      */
@@ -83,6 +115,7 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
         """[6,{},"wamp.close.system_shutdown"]""",
         Message.Goodbye(reason = "wamp.close.system_shutdown")
     ),
+
     /**
      * [GOODBYE, Details|dict, Reason|uri]
      */
@@ -90,6 +123,7 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
         """[6,{},"wamp.close.close_realm"]""",
         Message.Goodbye(reason = "wamp.close.close_realm")
     ),
+
     /**
      * [GOODBYE, Details|dict, Reason|uri]
      */
@@ -97,6 +131,7 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
         """[6,{},"wamp.close.goodbye_and_out"]""",
         Message.Goodbye(reason = "wamp.close.goodbye_and_out")
     ),
+
     /**
      * [SUBSCRIBE, Request|id, Options|dict, Topic|uri]
      */
@@ -104,6 +139,7 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
         """[32,713845233,{},"com.myapp.mytopic1"]""",
         Message.Subscribe(713845233, "com.myapp.mytopic1")
     ),
+
     /**
      * [SUBSCRIBE, Request|id, Options|dict, Topic|uri]
      */
@@ -111,6 +147,7 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
         """[32,713845234,{},"com.myapp.mytopic1"]""",
         Message.Subscribe(713845234, "com.myapp.mytopic1")
     ),
+
     /**
      * [SUBSCRIBED, SUBSCRIBE.Request|id, Subscription|id]
      */
@@ -118,6 +155,7 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
         """[33,713845233,5512315355]""",
         Message.Subscribed(requestId = 713845233, subscriptionId = 5512315355)
     ),
+
     /**
      * [SUBSCRIBED, SUBSCRIBE.Request|id, Subscription|id]
      */
@@ -125,13 +163,19 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
         """[33,713845234,5512315356]""",
         Message.Subscribed(requestId = 713845234, subscriptionId = 5512315356)
     ),
+
     /**
      * [ERROR, SUBSCRIBE, SUBSCRIBE.Request|id, Details|dict, Error|uri]
      */
     SUBSCRIBE_ERROR(
         """[8,32,713845233,{},"wamp.error.not_authorized"]""",
-        Message.Error(requestId = 713845233, originalType = 32, wampErrorUri = "wamp.error.not_authorized")
+        Message.Error(
+            requestId = 713845233,
+            originalType = 32,
+            wampErrorUri = "wamp.error.not_authorized"
+        )
     ),
+
     /**
      * [UNSUBSCRIBE, Request|id, SUBSCRIBED.Subscription|id]
      */
@@ -139,6 +183,7 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
         """[34,85346237,5512315355]""",
         Message.Unsubscribe(requestId = 85346237, subscriptionId = 5512315355)
     ),
+
     /**
      * [UNSUBSCRIBE, Request|id, SUBSCRIBED.Subscription|id]
      */
@@ -146,6 +191,7 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
         """[34,85346238,5512315356]""",
         Message.Unsubscribe(requestId = 85346238, subscriptionId = 5512315356)
     ),
+
     /**
      * [UNSUBSCRIBED, UNSUBSCRIBE.Request|id]
      */
@@ -153,6 +199,7 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
         """[35,85346237]""",
         Message.Unsubscribed(requestId = 85346237)
     ),
+
     /**
      * [UNSUBSCRIBED, UNSUBSCRIBE.Request|id]
      */
@@ -160,27 +207,45 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
         """[35,85346238]""",
         Message.Unsubscribed(requestId = 85346238)
     ),
+
     /**
      * [UNSUBSCRIBE, Request|id, SUBSCRIBED.Subscription|id]
      */
     UNSUBSCRIBE_ERROR(
         """[8,34,85346237,{},"wamp.error.no_such_subscription"]""",
-        Message.Error(requestId = 85346237, originalType = 34, wampErrorUri = "wamp.error.no_such_subscription")
+        Message.Error(
+            requestId = 85346237,
+            originalType = 34,
+            wampErrorUri = "wamp.error.no_such_subscription"
+        )
     ),
+
     /**
      * [PUBLISH, Request|id, Options|dict, Topic|uri]
      */
     PUBLISH_NO_ARG(
         """[16,239714735,{"acknowledge":true},"com.myapp.mytopic1"]""",
-        Message.Publish(239714735, "com.myapp.mytopic1", null, null, json { "acknowledge" to true })
+        Message.Publish(
+            239714735,
+            "com.myapp.mytopic1",
+            null,
+            null,
+            buildJsonObject { put("acknowledge", true) })
     ),
+
     /**
      * [PUBLISH, Request|id, Options|dict, Topic|uri]
      */
     PUBLISH_NO_ARG2(
         """[16,239714736,{"acknowledge":true},"com.myapp.mytopic1"]""",
-        Message.Publish(239714736, "com.myapp.mytopic1", null, null, json { "acknowledge" to true })
+        Message.Publish(
+            239714736,
+            "com.myapp.mytopic1",
+            null,
+            null,
+            buildJsonObject { put("acknowledge", true) })
     ),
+
     /**
      * [PUBLISH, Request|id, Options|dict, Topic|uri]
      */
@@ -188,13 +253,20 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
         """[16,239714735,{},"com.myapp.mytopic1"]""",
         Message.Publish(239714735, "com.myapp.mytopic1", null, null)
     ),
+
     /**
      * [PUBLISH, Request|id, Options|dict, Topic|uri, Arguments|list]
      */
     PUBLISH_ONLY_ARRAY_ARG(
         """[16,239714735,{"acknowledge":true},"com.myapp.mytopic1",["Hello, world!"]]""",
-        Message.Publish(239714735, "com.myapp.mytopic1", jsonArray { +"Hello, world!" }, null, json { "acknowledge" to true })
+        Message.Publish(
+            239714735,
+            "com.myapp.mytopic1",
+            buildJsonArray { add("Hello, world!") },
+            null,
+            buildJsonObject { put("acknowledge", true) })
     ),
+
     /**
      * [PUBLISH, Request|id, Options|dict, Topic|uri, Arguments|list, ArgumentsKw|dict]
      */
@@ -204,16 +276,17 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
             requestId = 239714735,
             topic = "com.myapp.mytopic1",
             arguments = emptyJsonArray(),
-            argumentsKw = json {
-                "color" to "orange"
-                "sizes" to jsonArray {
-                    +(23 as Number)
-                    +(42 as Number)
-                    +(7 as Number)
-                }
+            argumentsKw = buildJsonObject {
+                put("color", "orange")
+                put("sizes", buildJsonArray {
+                    add(23 as Number)
+                    add(42 as Number)
+                    add(7 as Number)
+                })
             },
-            options = json { "acknowledge" to true })
+            options = buildJsonObject { put("acknowledge", true) })
     ),
+
     /**
      * [PUBLISH, Request|id, Options|dict, Topic|uri, Arguments|list, ArgumentsKw|dict]
      */
@@ -223,16 +296,17 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
             requestId = 239714735,
             topic = "com.myapp.mytopic1",
             arguments = null,
-            argumentsKw = json {
-                "color" to "orange"
-                "sizes" to jsonArray {
-                    +(23 as Number)
-                    +(42 as Number)
-                    +(7 as Number)
-                }
+            argumentsKw = buildJsonObject {
+                put("color", "orange")
+                put("sizes", buildJsonArray {
+                    add(23 as Number)
+                    add(42 as Number)
+                    add(7 as Number)
+                })
             },
-            options = json { "acknowledge" to true })
+            options = buildJsonObject { put("acknowledge", true) })
     ),
+
     /**
      * [PUBLISHED, PUBLISH.Request|id, Publication|id]
      */
@@ -240,6 +314,7 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
         """[17,239714735,4429313566]""",
         Message.Published(requestId = 239714735, publicationId = 4429313566)
     ),
+
     /**
      * [PUBLISHED, PUBLISH.Request|id, Publication|id]
      */
@@ -247,13 +322,19 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
         """[17,239714736,4429313567]""",
         Message.Published(requestId = 239714736, publicationId = 4429313567)
     ),
+
     /**
      * [ERROR, PUBLISH, PUBLISH.Request|id, Details|dict, Error|uri]
      */
     PUBLISH_ERROR(
         """[8,16,239714735,{},"wamp.error.not_authorized"]""",
-        Message.Error(requestId = 239714735, originalType = 16, wampErrorUri = "wamp.error.not_authorized")
+        Message.Error(
+            requestId = 239714735,
+            originalType = 16,
+            wampErrorUri = "wamp.error.not_authorized"
+        )
     ),
+
     /**
      * [EVENT, SUBSCRIBED.Subscription|id, PUBLISHED.Publication|id, Details|dict]
      */
@@ -267,6 +348,7 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
             argumentsKw = null
         )
     ),
+
     /**
      * [EVENT, SUBSCRIBED.Subscription|id, PUBLISHED.Publication|id, Details|dict]
      */
@@ -280,6 +362,7 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
             argumentsKw = null
         )
     ),
+
     /**
      * [EVENT, SUBSCRIBED.Subscription|id, PUBLISHED.Publication|id, Details|dict, PUBLISH.Arguments|list]
      */
@@ -289,10 +372,11 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
             subscriptionId = 5512315355,
             publicationId = 4429313566,
             details = emptyJsonObject(),
-            arguments = jsonArray { +"Hello, world!" },
+            arguments = buildJsonArray { add("Hello, world!") },
             argumentsKw = null
         )
     ),
+
     /**
      * [EVENT, SUBSCRIBED.Subscription|id, PUBLISHED.Publication|id, Details|dict, PUBLISH.Arguments|list, PUBLISH.ArgumentKw|dict]
      */
@@ -303,16 +387,17 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
             publicationId = 4429313566,
             details = emptyJsonObject(),
             arguments = emptyJsonArray(),
-            argumentsKw = json {
-                "color" to "orange"
-                "sizes" to jsonArray {
-                    +(23 as Number)
-                    +(42 as Number)
-                    +(7 as Number)
-                }
+            argumentsKw = buildJsonObject {
+                put("color", "orange")
+                put("sizes", buildJsonArray {
+                    add(23 as Number)
+                    add(42 as Number)
+                    add(7 as Number)
+                })
             }
         )
     ),
+
     /**
      * [REGISTER, Request|id, Options|dict, Procedure|uri]
      */
@@ -320,6 +405,7 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
         """[64,25349185,{},"com.myapp.myprocedure1"]""",
         Message.Register(requestId = 25349185, procedureId = "com.myapp.myprocedure1")
     ),
+
     /**
      * [REGISTER, Request|id, Options|dict, Procedure|uri]
      */
@@ -327,6 +413,7 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
         """[64,25349186,{},"com.myapp.myprocedure1"]""",
         Message.Register(requestId = 25349186, procedureId = "com.myapp.myprocedure1")
     ),
+
     /**
      * [REGISTERED, REGISTER.Request|id, Registration|id]
      */
@@ -334,6 +421,7 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
         """[65,25349185,2103333224]""",
         Message.Registered(requestId = 25349185, registrationId = 2103333224)
     ),
+
     /**
      * [REGISTERED, REGISTER.Request|id, Registration|id]
      */
@@ -341,13 +429,19 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
         """[65,25349186,2103333225]""",
         Message.Registered(requestId = 25349186, registrationId = 2103333225)
     ),
+
     /**
      * [ERROR, REGISTER, REGISTER.Request|id, Details|dict, Error|uri]
      */
     REGISTER_ERROR(
         """[8,64,25349185,{},"wamp.error.procedure_already_exists"]""",
-        Message.Error(requestId = 25349185, originalType = 64, wampErrorUri = "wamp.error.procedure_already_exists")
+        Message.Error(
+            requestId = 25349185,
+            originalType = 64,
+            wampErrorUri = "wamp.error.procedure_already_exists"
+        )
     ),
+
     /**
      * [UNREGISTER, Request|id, REGISTERED.Registration|id]
      */
@@ -355,6 +449,7 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
         """[66,788923562,2103333224]""",
         Message.Unregister(requestId = 788923562, registrationId = 2103333224)
     ),
+
     /**
      * [UNREGISTER, Request|id, REGISTERED.Registration|id]
      */
@@ -362,6 +457,7 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
         """[66,788923563,2103333225]""",
         Message.Unregister(requestId = 788923563, registrationId = 2103333225)
     ),
+
     /**
      * [UNREGISTERED, UNREGISTER.Request|id]
      */
@@ -369,6 +465,7 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
         """[67,788923562]""",
         Message.Unregistered(requestId = 788923562)
     ),
+
     /**
      * [UNREGISTERED, UNREGISTER.Request|id]
      */
@@ -376,13 +473,19 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
         """[67,788923563]""",
         Message.Unregistered(requestId = 788923563)
     ),
+
     /**
      * [ERROR, UNREGISTER, UNREGISTER.Request|id, Details|dict, Error|uri]
      */
     UNREGISTER_ERROR(
         """[8,66,788923562,{},"wamp.error.no_such_registration"]""",
-        Message.Error(requestId = 788923562, originalType = 66, wampErrorUri = "wamp.error.no_such_registration")
+        Message.Error(
+            requestId = 788923562,
+            originalType = 66,
+            wampErrorUri = "wamp.error.no_such_registration"
+        )
     ),
+
     /**
      * [CALL, Request|id, Options|dict, Procedure|uri]
      */
@@ -404,6 +507,7 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
             argumentsKw = null
         )
     ),
+
     /**
      * [CALL, Request|id, Options|dict, Procedure|uri, Arguments|list]
      */
@@ -412,10 +516,11 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
         Message.Call(
             requestId = 7814135,
             procedureId = "com.myapp.echo",
-            arguments = jsonArray { +"Hello, world!" },
+            arguments = buildJsonArray { add("Hello, world!") },
             argumentsKw = null
         )
     ),
+
     /**
      * [CALL, Request|id, Options|dict, Procedure|uri, Arguments|list, ArgumentsKw|dict]
      */
@@ -424,13 +529,14 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
         Message.Call(
             requestId = 7814135,
             procedureId = "com.myapp.user.new",
-            arguments = jsonArray { +"johnny" },
-            argumentsKw = json {
-                "firstname" to "John"
-                "surname" to "Doe"
+            arguments = buildJsonArray { add("johnny") },
+            argumentsKw = buildJsonObject {
+                put("firstname", "John")
+                put("surname", "Doe")
             }
         )
     ),
+
     /**
      * [CALL, Request|id, Options|dict, Procedure|uri, Arguments|list, ArgumentsKw|dict]
      */
@@ -440,12 +546,13 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
             requestId = 7814135,
             procedureId = "com.myapp.user.new",
             arguments = null,
-            argumentsKw = json {
-                "firstname" to "John"
-                "surname" to "Doe"
+            argumentsKw = buildJsonObject {
+                put("firstname", "John")
+                put("surname", "Doe")
             }
         )
     ),
+
     /**
      * [INVOCATION, Request|id, REGISTERED.Registration|id, Details|dict]
      */
@@ -458,6 +565,7 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
             argumentsKw = null
         )
     ),
+
     /**
      * [INVOCATION, Request|id, REGISTERED.Registration|id, Details|dict]
      */
@@ -470,6 +578,7 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
             argumentsKw = null
         )
     ),
+
     /**
      * [INVOCATION, Request|id, REGISTERED.Registration|id, Details|dict, CALL.Arguments|list]
      */
@@ -478,10 +587,11 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
         Message.Invocation(
             requestId = 6131533,
             registrationId = 2103333224,
-            arguments = jsonArray { +"Hello, world!" },
+            arguments = buildJsonArray { add("Hello, world!") },
             argumentsKw = null
         )
     ),
+
     /**
      * [INVOCATION, Request|id, REGISTERED.Registration|id, Details|dict, CALL.Arguments|list, CALL.ArgumentsKw|dict]]
      */
@@ -490,13 +600,14 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
         Message.Invocation(
             requestId = 6131533,
             registrationId = 2103333224,
-            arguments = jsonArray { +"johnny" },
-            argumentsKw = json {
-                "firstname" to "John"
-                "surname" to "Doe"
+            arguments = buildJsonArray { add("johnny") },
+            argumentsKw = buildJsonObject {
+                put("firstname", "John")
+                put("surname", "Doe")
             }
         )
     ),
+
     /**
      * [YIELD, INVOCATION.Request|id, Options|dict]
      */
@@ -508,6 +619,7 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
             argumentsKw = null
         )
     ),
+
     /**
      * [YIELD, INVOCATION.Request|id, Options|dict, Arguments|list]
      */
@@ -515,10 +627,11 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
         """[70,6131533,{},["Hello, world!"]]""",
         Message.Yield(
             requestId = 6131533,
-            arguments = jsonArray { +"Hello, world!" },
+            arguments = buildJsonArray { add("Hello, world!") },
             argumentsKw = null
         )
     ),
+
     /**
      * [YIELD, INVOCATION.Request|id, Options|dict, Arguments|list, ArgumentsKw|dict]
      */
@@ -527,12 +640,13 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
         Message.Yield(
             requestId = 6131533,
             arguments = emptyJsonArray(),
-            argumentsKw = json {
-                "userid" to 123
-                "karma" to 10
+            argumentsKw = buildJsonObject {
+                put("userid", 123)
+                put("karma", 10)
             }
         )
     ),
+
     /**
      * [YIELD, INVOCATION.Request|id, Options|dict, Arguments|list, ArgumentsKw|dict]
      */
@@ -541,12 +655,13 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
         Message.Yield(
             requestId = 6131533,
             arguments = null,
-            argumentsKw = json {
-                "userid" to 123
-                "karma" to 10
+            argumentsKw = buildJsonObject {
+                put("userid", 123)
+                put("karma", 10)
             }
         )
     ),
+
     /**
      * [RESULT, CALL.Request|id, Details|dict]
      */
@@ -558,6 +673,7 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
             argumentsKw = null
         )
     ),
+
     /**
      * [RESULT, CALL.Request|id, Details|dict]
      */
@@ -569,6 +685,7 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
             argumentsKw = null
         )
     ),
+
     /**
      * [RESULT, CALL.Request|id, Details|dict, YIELD.Arguments|list]
      */
@@ -576,10 +693,11 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
         """[50,7814135,{},["Hello, world!"]]""",
         Message.Result(
             requestId = 7814135,
-            arguments = jsonArray { +"Hello, world!" },
+            arguments = buildJsonArray { add("Hello, world!") },
             argumentsKw = null
         )
     ),
+
     /**
      * [RESULT, CALL.Request|id, Details|dict, YIELD.Arguments|list, YIELD.ArgumentsKw|dict]
      */
@@ -588,12 +706,13 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
         Message.Result(
             requestId = 7814135,
             arguments = emptyJsonArray(),
-            argumentsKw = json {
-                "userid" to 123
-                "karma" to 10
+            argumentsKw = buildJsonObject {
+                put("userid", 123)
+                put("karma", 10)
             }
         )
     ),
+
     /**
      * [ERROR, INVOCATION, INVOCATION.Request|id, Details|dict, Error|uri]
      */
@@ -607,6 +726,7 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
             argumentsKw = null
         )
     ),
+
     /**
      * [ERROR, INVOCATION, INVOCATION.Request|id, Details|dict, Error|uri, Arguments|list]
      */
@@ -616,10 +736,11 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
             requestId = 6131533,
             originalType = 68,
             wampErrorUri = "com.myapp.error.object_write_protected",
-            arguments = jsonArray { +"Object is write protected." },
+            arguments = buildJsonArray { add("Object is write protected.") },
             argumentsKw = null
         )
     ),
+
     /**
      * [ERROR, INVOCATION, INVOCATION.Request|id, Details|dict, Error|uri, Arguments|list, ArgumentsKw|dict]
      */
@@ -629,10 +750,11 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
             requestId = 6131533,
             originalType = 68,
             wampErrorUri = "com.myapp.error.object_write_protected",
-            arguments = jsonArray { +"Object is write protected." },
-            argumentsKw = json { "severity" to 3 }
+            arguments = buildJsonArray { add("Object is write protected.") },
+            argumentsKw = buildJsonObject { put("severity", 3) }
         )
     ),
+
     /**
      * [ERROR, CALL, CALL.Request|id, Details|dict, Error|uri]
      */
@@ -646,6 +768,7 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
             argumentsKw = null
         )
     ),
+
     /**
      * [ERROR, CALL, CALL.Request|id, Details|dict, Error|uri, Arguments|list]
      */
@@ -655,10 +778,11 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
             requestId = 7814135,
             originalType = 48,
             wampErrorUri = "com.myapp.error.object_write_protected",
-            arguments = jsonArray { +"Object is write protected." },
+            arguments = buildJsonArray { add("Object is write protected.") },
             argumentsKw = null
         )
     ),
+
     /**
      * [ERROR, CALL, CALL.Request|id, Details|dict, Error|uri, Arguments|list, ArgumentsKw|dict]
      */
@@ -668,8 +792,8 @@ internal enum class ExampleMessage(val messageJson: String, val message: Message
             requestId = 7814135,
             originalType = 48,
             wampErrorUri = "com.myapp.error.object_write_protected",
-            arguments = jsonArray { +"Object is write protected." },
-            argumentsKw = json { "severity" to 3 }
+            arguments = buildJsonArray { add("Object is write protected.") },
+            argumentsKw = buildJsonObject { put("severity", 3) }
         )
     )
 }

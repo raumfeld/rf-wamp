@@ -19,6 +19,8 @@ import kotlinx.coroutines.Dispatchers.Main
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.channels.consumeEach
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.add
+import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.jsonArray
 
 class MainActivity : AppCompatActivity(), WampSession.WampSessionListener {
@@ -52,12 +54,12 @@ class MainActivity : AppCompatActivity(), WampSession.WampSessionListener {
                 val channel =
                     session?.call(
                         callProcedureUri.text.toString(),
-                        jsonArray { +callProcedureArgument.text.toString() })
+                        buildJsonArray { add(callProcedureArgument.text.toString()) })
                         ?: return@launch
                 channel.consumeEach {
                     when (it) {
                         is CallerEvent.CallSucceeded -> toast("Call returned: ${it.arguments}\n${it.argumentsKw}")
-                        is CallerEvent.CallFailed    -> toast("Call failed: ${it.errorUri}")
+                        is CallerEvent.CallFailed -> toast("Call failed: ${it.errorUri}")
                     }
                 }
             }
@@ -71,16 +73,17 @@ class MainActivity : AppCompatActivity(), WampSession.WampSessionListener {
             }
         }
         register.setOnClickListener {
-            val result = jsonArray { +registerProcedureReturn.text.toString() }
+            val result = buildJsonArray { add(registerProcedureReturn.text.toString()) }
             GlobalScope.launch(Main) {
-                val channel = session?.register(registerProcedureUri.text.toString()) ?: return@launch
+                val channel =
+                    session?.register(registerProcedureUri.text.toString()) ?: return@launch
                 channel.consumeEach {
                     when (it) {
-                        is CalleeEvent.ProcedureRegistered   -> {
+                        is CalleeEvent.ProcedureRegistered -> {
                             registrationId = it.registrationId
                             toast("Procedure was registered successfully")
                         }
-                        is CalleeEvent.Invocation            -> {
+                        is CalleeEvent.Invocation -> {
                             toast(
                                 "Received invocation: ${it.arguments}\n" +
                                         "${it.argumentsKw}\nReturning $result"
@@ -88,8 +91,8 @@ class MainActivity : AppCompatActivity(), WampSession.WampSessionListener {
                             it.returnResult(CallerEvent.CallSucceeded(result))
                         }
                         is CalleeEvent.ProcedureUnregistered -> toast("We have unregistered")
-                        is CalleeEvent.RegistrationFailed    -> toast("Procedure registration failed with: ${it.errorUri}")
-                        is CalleeEvent.UnregistrationFailed  -> toast("Procedure unregistration failed with: ${it.errorUri}")
+                        is CalleeEvent.RegistrationFailed -> toast("Procedure registration failed with: ${it.errorUri}")
+                        is CalleeEvent.UnregistrationFailed -> toast("Procedure unregistration failed with: ${it.errorUri}")
                     }
                 }
                 toast("Registration has ended")
@@ -105,13 +108,13 @@ class MainActivity : AppCompatActivity(), WampSession.WampSessionListener {
                             subscriptionId = it.subscriptionId
                             toast("Subscription established")
                         }
-                        is Payload                 -> toast("Received event: ${it.arguments}\n${it.argumentsKw}")
-                        is SubscriptionFailed      -> {
+                        is Payload -> toast("Received event: ${it.arguments}\n${it.argumentsKw}")
+                        is SubscriptionFailed -> {
                             subscriptionId = null
                             toast("Subscription failed with: ${it.errorUri}")
                         }
-                        SubscriptionClosed         -> toast("We have unsubscribed")
-                        is UnsubscriptionFailed    -> toast("Unsubscription failed with: ${it.errorUri}")
+                        SubscriptionClosed -> toast("We have unsubscribed")
+                        is UnsubscriptionFailed -> toast("Unsubscription failed with: ${it.errorUri}")
                     }
                 }
                 toast("Subscription has ended")
@@ -128,7 +131,7 @@ class MainActivity : AppCompatActivity(), WampSession.WampSessionListener {
             GlobalScope.launch(Main) {
                 val channel = session?.publish(
                     publishTopic.text.toString(),
-                    jsonArray { +publishValue.text.toString() },
+                    buildJsonArray { add(publishValue.text.toString()) },
                     null,
                     acknowledge = true
                 ) ?: return@launch
@@ -136,7 +139,7 @@ class MainActivity : AppCompatActivity(), WampSession.WampSessionListener {
                 channel.consumeEach {
                     when (it) {
                         is PublicationEvent.PublicationSucceeded -> toast("Publish succeeded!")
-                        is PublicationEvent.PublicationFailed    -> toast("Publish failed with: ${it.errorUri}")
+                        is PublicationEvent.PublicationFailed -> toast("Publish failed with: ${it.errorUri}")
                     }
                 }
             }

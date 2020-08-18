@@ -1,14 +1,11 @@
-plugins {
-    id 'kotlin-multiplatform' 
-    id 'kotlinx-serialization' 
-    id 'com.android.library'
-    id 'com.github.dcendents.android-maven'
-}
+apply plugin: 'kotlin-multiplatform'
+apply plugin: 'kotlinx-serialization'
+apply plugin: 'com.android.library'
+apply plugin: 'com.github.dcendents.android-maven'
 
 repositories {
     google()
     jcenter()
-    maven { url "https://kotlin.bintray.com/kotlinx" }
 }
 
 group 'com.github.raumfeld.rf-wamp'
@@ -45,8 +42,8 @@ kotlin {
         commonMain {
             dependencies {
                 implementation kotlin('stdlib-common')
-                implementation "org.jetbrains.kotlinx:kotlinx-serialization-runtime:$kotlin_serialization_runtime_version"
-                implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core-common:$kotlin_coroutines_version"
+                api "org.jetbrains.kotlinx:kotlinx-serialization-core:$kotlin_serialization_core_version"
+                implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core:$kotlin_coroutines_version"
             }
         }
         commonTest {
@@ -54,23 +51,14 @@ kotlin {
                 implementation kotlin('test-common')
                 implementation kotlin('test-annotations-common')
                 implementation "io.mockk:mockk-common:$mockk_version"
-                implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core-common:$kotlin_coroutines_version"
+                implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core:$kotlin_coroutines_version"
             }
         }
         androidMain {
             dependsOn commonMain
-            dependencies {
-                implementation kotlin('stdlib')
-                implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core:$kotlin_coroutines_version"
-                api "org.jetbrains.kotlinx:kotlinx-serialization-runtime:0.11.0"
-            }
         }
         jvmMain {
             dependsOn commonMain
-            dependencies {
-                implementation 'org.jetbrains.kotlin:kotlin-stdlib-jdk8'
-                implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core:$kotlin_coroutines_version"
-            }
         }
         androidTest {
             dependsOn commonTest
@@ -78,22 +66,16 @@ kotlin {
                 implementation kotlin('test')
                 implementation kotlin('test-junit')
                 implementation "io.mockk:mockk:$mockk_version"
-                implementation "org.jetbrains.kotlinx:kotlinx-serialization-runtime:$kotlin_serialization_runtime_version"
-                implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core:$kotlin_coroutines_version"
                 implementation project(":extensions-android-okhttp")
             }
         }
         iosMain {
             dependsOn commonMain
-            dependencies {
-                implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core-native:$kotlin_coroutines_version"
-            }
         }
         iosTest {
             dependsOn commonTest
             dependencies {
                 implementation kotlin('test')
-                implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core-native:$kotlin_coroutines_version"
             }
         }
     }

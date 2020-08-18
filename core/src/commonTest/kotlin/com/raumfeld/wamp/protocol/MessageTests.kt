@@ -1,6 +1,6 @@
 package com.raumfeld.wamp.protocol
 
-import kotlinx.serialization.json.JsonException
+import kotlinx.serialization.SerializationException
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -23,7 +23,7 @@ class MessageTests {
         val message = fromJsonToMessage(invalidJson)
         assertTrue(message is Message.InvalidMessage)
         assertEquals(invalidJson, message.originalMessage)
-        assertTrue(message.throwable is JsonException)
+        assertTrue(message.throwable is SerializationException)
     }
 
 

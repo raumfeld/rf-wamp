@@ -15,8 +15,7 @@ import com.raumfeld.wamp.runTest
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.serialization.json.json
-import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.*
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.fail
@@ -82,10 +81,15 @@ internal class ConcurrencyTests {
             delayRandomly()
             val publication1 = session.publish("firstTopic", acknowledge = true)
             publication1.getEvent<PublicationSucceeded>()
-            session.publish("firstTopic", jsonArray { +"second" })
+            session.publish("firstTopic", buildJsonArray { add("second") })
             session.publish("secondTopic", emptyJsonArray(), emptyJsonObject())
             delayRandomly()
-            session.publish("firstTopic", argumentsKw = json { "third" to 3 })
+            session.publish("firstTopic", argumentsKw = buildJsonObject {
+                put(
+                    "third",
+                    3
+                )
+            })
             delayRandomly()
             // now wait for the events of the other clients events
             repeat(NUMBER_OF_CLIENTS - 1) {
@@ -101,9 +105,15 @@ internal class ConcurrencyTests {
             val registrationChannel1 = session.register(makeProcedureName(clientIndex))
             val registrationId = registrationChannel1.getEvent<ProcedureRegistered>().registrationId
             registrationBarrier.await()
-            val otherClientProcedures = ((0 until NUMBER_OF_CLIENTS) - clientIndex).map { makeProcedureName(it) }
-            val arguments = jsonArray { +(clientIndex as Number) }
-            val argumentsKw = json { "clientIndex" to clientIndex }
+            val otherClientProcedures =
+                ((0 until NUMBER_OF_CLIENTS) - clientIndex).map { makeProcedureName(it) }
+            val arguments = buildJsonArray { add(clientIndex as Number) }
+            val argumentsKw = buildJsonObject {
+                put(
+                    "clientIndex",
+                    clientIndex
+                )
+            }
             val resultChannels = otherClientProcedures.map {
                 delayRandomly()
                 session.call(it, arguments, argumentsKw)
@@ -112,7 +122,12 @@ internal class ConcurrencyTests {
             repeat(NUMBER_OF_CLIENTS - 1) {
                 val invocation = registrationChannel1.getEvent<Invocation>()
                 delayRandomly()
-                invocation.returnResult(CallerEvent.CallSucceeded(invocation.arguments, invocation.argumentsKw))
+                invocation.returnResult(
+                    CallerEvent.CallSucceeded(
+                        invocation.arguments,
+                        invocation.argumentsKw
+                    )
+                )
             }
             resultChannels.forEach {
                 val result = it.getEvent<CallerEvent.CallSucceeded>()

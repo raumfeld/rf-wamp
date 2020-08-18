@@ -8,10 +8,8 @@ import com.raumfeld.wamp.protocol.RequestMessage
 import com.raumfeld.wamp.protocol.WampClose
 import com.raumfeld.wamp.websocket.WebSocketDelegate
 import io.mockk.*
-import kotlinx.coroutines.channels.ReceiveChannel
-import kotlinx.coroutines.withTimeout
-import kotlinx.serialization.json.json
-import kotlin.test.assertEquals
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import kotlin.test.fail
 
 internal open class BaseSessionTests {
@@ -83,7 +81,7 @@ internal open class BaseSessionTests {
     protected fun verifyWebSocketWasClosed() = coVerify(exactly = 1) { mockWebSocketDelegate.close(any(), any()) }
     protected fun verifyWebSocketWasNotClosed() = coVerify(exactly = 0) { mockWebSocketDelegate.close(any(), any()) }
     protected fun protocolViolationMessage(message: String) =
-        Message.Abort(details = json { "message" to message }, reason = WampClose.PROTOCOL_VIOLATION.content)
+        Message.Abort(details = buildJsonObject { put("message", message) }, reason = WampClose.PROTOCOL_VIOLATION.content)
 
     protected fun failOnSessionAbort(fail: Boolean = true) {
         every {
